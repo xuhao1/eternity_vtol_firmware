@@ -76,7 +76,7 @@ void attitude_controller::init_sub(ros::NodeHandle &nh) {
 	angular_velocity_sp_sub = nh.subscribe("/state_machine/angular_velocity_sp",10,&attitude_controller::angular_velocity_callback,this);
 	attitude_sp_sub = nh.subscribe("/state_machine/attitude_sp",10,&attitude_controller::attitude_sp_callback,this);
 	mode_sub = nh.subscribe("/state_machine/fc_mode",10,&attitude_controller::mode_sub_callback,this);
-	accel_sub = nh.subscribe("/dji_sdk/Acceleration",10,&attitude_controller::accel_sub_callback,this);
+	accel_sub = nh.subscribe("/dji_sdk/acceleration",10,&attitude_controller::accel_sub_callback,this);
 }
 void attitude_controller::attitude_sp_callback(const eternity_fc::attitude_sp &sp) {
 	this->attitude_sp = sp;
@@ -98,7 +98,6 @@ void attitude_controller::accel_sub_callback(const dji_sdk::Acceleration &acc) {
 
 void attitude_controller::odometry_callback(const nav_msgs::Odometry &odometry) {
 	this->odometry = odometry;
-	//TODO:Remember this is body frame
 	this->angular_velocity.x() = odometry.twist.twist.angular.x;
 	this->angular_velocity.y() = odometry.twist.twist.angular.y;
 	this->angular_velocity.z() = odometry.twist.twist.angular.z;
@@ -108,9 +107,10 @@ void attitude_controller::odometry_callback(const nav_msgs::Odometry &odometry) 
 	this->attitude.y() = odometry.pose.pose.orientation.y;
 	this->attitude.z() = odometry.pose.pose.orientation.z;
 
+	//vel and pos is in NED
 	this->ground_velocity.x() = odometry.twist.twist.linear.x;
 	this->ground_velocity.y() = odometry.twist.twist.linear.y;
-	this->ground_velocity.z() = odometry.twist.twist.linear.z;
+	this->ground_velocity.z() = - odometry.twist.twist.linear.z;
 
 	this->local_velocity = this->attitude.inverse()._transformVector(this->ground_velocity);
 }
