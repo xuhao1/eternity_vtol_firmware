@@ -6,9 +6,19 @@ void state_machine::fast_update(const ros::TimerEvent &event) {
     //update about control
     mode_action  action = mode_action::donothing ;
     static int rc_arm_tick = 0;
-    if (rc_value.throttle < -9500 && rc_value.pitch < -9500 && rc_value.yaw > 9500 && rc_value.roll < -9500)
+    bool rc_trying_arm = false;
+    if (!using_rc_or_joy)
     {
-        rc_trying_arm = true;
+        if (rc_value.throttle < -9500 && rc_value.pitch < -9500 && rc_value.yaw > 9500 && rc_value.roll < -9500)
+        {
+            rc_trying_arm = true;
+        }
+    }
+    else{
+        if (rc_value.throttle < -9900 && rc_value.pitch < -9900)
+        {
+            rc_trying_arm = true;
+        }
     }
     if (rc_trying_arm)
     {
@@ -16,6 +26,8 @@ void state_machine::fast_update(const ros::TimerEvent &event) {
     } else {
         rc_arm_tick = 0;
     }
+
+    this->rc_trying_arm = rc_trying_arm;
 
     if (rc_arm_tick > 100)
     {
@@ -86,6 +98,8 @@ void state_machine::slow_update(const ros::TimerEvent &event) {
 void state_machine::init(ros::NodeHandle &nh) {
     //TODO:is that right?
     rc_channels_sub = nh.subscribe("/dji_sdk/rc_channels",10,&state_machine::update_rc_channels,this);
+    joy_sub = nh.subscribe("/joy",10,&state_machine::update_joy,this);
+
     angular_velocity_sp_pub = nh.advertise<eternity_fc::angular_velocity_sp>("angular_velocity_sp",10);
     attitude_sp_pub = nh.advertise<eternity_fc::attitude_sp>("attitude_sp",10);
     mode_pub = nh.advertise<std_msgs::Int32>("fc_mode",10);
@@ -95,6 +109,7 @@ void state_machine::init(ros::NodeHandle &nh) {
     nh.param("max_yaw_speed",max_yaw_speed,180.0f);
     nh.param("max_vertical_speed",max_vertical_speed,5.0f);
     nh.param("max_angular_velocity",max_angular_velocity,1.0f);
+    nh.param("using_rc_or_joy",using_rc_or_joy,false);
 
     slow_timer = nh.createTimer(ros::Rate(10),&state_machine::slow_update,this);
     fast_timer = nh.createTimer(ros::Rate(100),&state_machine::fast_update,this);
@@ -129,7 +144,7 @@ void state_machine::init_state_machine() {
     state_transfer[controller_mode::manual][mode_action::toAttitude] = controller_mode::attitude;
 
     //For debug!!! Attetion
-    mode = controller_mode ::attitude;
+//    mode = controller_mode ::attitude;
 }
 
 void state_machine::update_state_machine(mode_action act) {
@@ -142,7 +157,23 @@ void state_machine::update_state_machine(mode_action act) {
 
 void state_machine::update_rc_channels(RCChannels rc_value) {
     //TODO:Use real delta time
-    this->rc_value = rc_value;
+    if (!using_rc_or_joy)
+        this->rc_value = rc_value;
+}
+
+void state_machine::update_joy(sensor_msgs::Joy joy_data) {
+    if (using_rc_or_joy)
+    {
+        if (joy_data.axes.size() < 4)
+            return;
+        this->rc_value.roll = joy_data.axes[0] * 10000;
+        this->rc_value.pitch = joy_data.axes[1] * 10000;
+        this->rc_value.throttle = joy_data.axes[2] * 10000;
+        this->rc_value.yaw = joy_data.axes[4] * 10000;
+        if (joy_data.buttons.size() < 1)
+            return;
+        this->rc_value.mode = joy_data.buttons[0] * 10000;
+    }
 }
 
 int main(int argc,char ** argv)

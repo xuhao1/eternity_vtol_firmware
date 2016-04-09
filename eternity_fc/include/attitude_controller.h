@@ -13,7 +13,11 @@
 #include <ros/ros.h>
 #include <state_machine.h>
 #include <dji_sdk/Acceleration.h>
-
+/*
+ This is controller for eternity proj
+ receieve odometry and accel msg from sensor
+ receieve mode attitude_sp angular_velocity_sp from state machine
+ */
 using namespace Eigen;
 
 class attitude_controller

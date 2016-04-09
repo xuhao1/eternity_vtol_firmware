@@ -4,5 +4,7 @@
     </node>
     <node pkg="eternity_fc" type="attitude_controller_node" name="attitude_controller" output="screen">
     </node>
+    <node pkg="eternity_fc" type="servo_mixer_node" name="servo_mixer" output="screen">
+    </node>
 
 </launch>

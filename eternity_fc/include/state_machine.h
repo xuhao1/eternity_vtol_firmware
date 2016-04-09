@@ -11,6 +11,7 @@
 #include <eternity_fc/attitude_sp.h>
 #include <eternity_fc/angular_velocity_sp.h>
 #include <std_msgs/Int32.h>
+#include <sensor_msgs/Joy.h>
 
 using namespace dji_sdk;
 
@@ -30,6 +31,7 @@ enum mode_action {
     action_end
 };
 
+//receive joy or rc
 class state_machine
 {
 public:
@@ -38,8 +40,10 @@ public:
     virtual void slow_update(const ros::TimerEvent& event);
 
     ros::Subscriber rc_channels_sub;
+    ros::Subscriber joy_sub;
 
     void update_rc_channels(RCChannels rc_value);
+    void update_joy(sensor_msgs::Joy joy_data);
     RCChannels rc_value;
     //Run 100hz
     ros::Timer fast_timer;
@@ -68,6 +72,11 @@ public:
     void update_set_points();
 
     void init_state_machine();
+
+
+    //false:rc
+    //true joy
+    bool using_rc_or_joy;
 
 };
 
