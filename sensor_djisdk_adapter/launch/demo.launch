@@ -1,0 +1,4 @@
+<launch>
+    <node name="unreal_sensor_adapter" pkg="sensor_djisdk_adapter" type="unreal_sensor_adapter.py" output="screen">
+    </node>
+</launch>

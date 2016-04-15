@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package>
+  <name>sensor_djisdk_adapter</name>
+  <version>0.0.0</version>
+  <description>A interface from sensors to djisdk.</description>
+
+  <license>BSD</license>
+
+  <author email="xuhao3e8@gmail.com">Hao Xu</author>
+  <maintainer email="xuhao3e8@gmail.com">Hao Xu</maintainer>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <run_depend>dji_sdk</run_depend>
+</package>

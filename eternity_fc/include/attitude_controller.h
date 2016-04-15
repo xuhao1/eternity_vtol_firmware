@@ -41,7 +41,7 @@ public:
     }
 
 
-    static void angle_axis_from_quat(Quaternionf q0, Quaternionf q_sp, float & angle, Vector3f & axis);
+    static void angle_axis_from_quat(Quaternionf q0, Quaternionf q_sp, Vector3f & axis);
 
     void angular_velocity_controller(float DeltaTime,Vector3f angular_vel_sp);
     void so3_attitude_controller(float DeltaTime, Quaternionf attitude_sp);
@@ -82,6 +82,8 @@ public:
     //setpoints
     eternity_fc::angular_velocity_sp angular_velocity_sp;
     eternity_fc::attitude_sp attitude_sp;
+
+    bool UsingUnreal;
 
 
     //sub

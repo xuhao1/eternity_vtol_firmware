@@ -4,6 +4,39 @@ float deltat = 0.01;
 
 void state_machine::fast_update(const ros::TimerEvent &event) {
     //update about control
+
+    checkArm();
+
+    update_set_points();
+
+}
+void state_machine::checkRC() {
+    if (!RCUpdated)
+    {
+        noRcUpdateCount ++;
+    }
+    else
+    {
+       noRcUpdateCount = 0;
+        if (!hasRC)
+        {
+            hasRC = true;
+            ROS_INFO("RC Receive");
+        }
+    }
+
+    if (noRcUpdateCount > 10)
+    {
+        static int count_rc_op = 0;
+        if (count_rc_op++ %10 == 1)
+            ROS_INFO("RC Lost");
+    }
+
+
+    RCUpdated = false;
+
+}
+void state_machine::checkArm() {
     mode_action  action = mode_action::donothing ;
     static int rc_arm_tick = 0;
     bool rc_trying_arm = false;
@@ -33,30 +66,26 @@ void state_machine::fast_update(const ros::TimerEvent &event) {
     {
         rc_arm_tick = 0;
         action = mode_action::arm;
+        ROS_INFO("ARM!!!!");
     }
 
     update_state_machine(action);
 
-    std_msgs::Int32 mode_tmp;
-    mode_tmp.data = mode;
-    mode_pub.publish(mode_tmp);
-
-    update_set_points();
-
 }
-
 void state_machine::update_set_points() {
       switch (mode) {
         case controller_mode::attitude : {
+            Eigen::Quaternionf base_quat ( Eigen::AngleAxisf(M_PI /2, Eigen::Vector3f::UnitY()));
+//            Eigen::Quaternionf base_quat ( Eigen::AngleAxisf(5*M_PI / 180.0, Eigen::Vector3f::UnitY()));
             float roll_sp = rc_value.roll * max_attitude_angle / 10000.0f;
             float pitch_sp = rc_value.pitch * max_attitude_angle /10000.0f;
             static float yaw_sp = 0;
             yaw_sp += rc_value.yaw * max_yaw_speed * deltat /10000.0f;
-            Eigen::AngleAxisd rollAngle(roll_sp * M_PI / 180, Eigen::Vector3d::UnitX());
-            Eigen::AngleAxisd pitchAngle(pitch_sp * M_PI / 180, Eigen::Vector3d::UnitY());
-            Eigen::AngleAxisd yawAngle(yaw_sp * M_PI / 180, Eigen::Vector3d::UnitZ());
-            Eigen::Quaterniond quat_sp = yawAngle * pitchAngle * rollAngle;
-            float vertical_speed = rc_value.throttle * max_vertical_speed;
+            Eigen::AngleAxisf rollAngle(roll_sp * M_PI / 180, Eigen::Vector3f::UnitX());
+            Eigen::AngleAxisf pitchAngle(pitch_sp * M_PI / 180, Eigen::Vector3f::UnitY());
+            Eigen::AngleAxisf yawAngle(yaw_sp * M_PI / 180, Eigen::Vector3f::UnitZ());
+            Eigen::Quaternionf quat_sp =yawAngle * pitchAngle * rollAngle * base_quat;
+            float vertical_speed = rc_value.throttle * max_vertical_speed / 10000.0f;
             eternity_fc::attitude_sp att_sp;
             att_sp.head_speed = vertical_speed;
             att_sp.w = quat_sp.w();
@@ -80,6 +109,7 @@ void state_machine::update_set_points() {
 }
 
 void state_machine::slow_update(const ros::TimerEvent &event) {
+    checkRC();
     //change state
     mode_action  action = mode_action::donothing;
     if (rc_value.mode <-9500)
@@ -93,6 +123,9 @@ void state_machine::slow_update(const ros::TimerEvent &event) {
 
     update_state_machine(action);
 
+    std_msgs::Int32 mode_tmp;
+    mode_tmp.data = mode;
+    mode_pub.publish(mode_tmp);
 }
 
 void state_machine::init(ros::NodeHandle &nh) {
@@ -108,7 +141,7 @@ void state_machine::init(ros::NodeHandle &nh) {
     nh.param("max_attitude_angle",max_attitude_angle,45.0f);
     nh.param("max_yaw_speed",max_yaw_speed,180.0f);
     nh.param("max_vertical_speed",max_vertical_speed,5.0f);
-    nh.param("max_angular_velocity",max_angular_velocity,1.0f);
+    nh.param("max_angular_velocity",max_angular_velocity,2.0f);
     nh.param("using_rc_or_joy",using_rc_or_joy,false);
 
     slow_timer = nh.createTimer(ros::Rate(10),&state_machine::slow_update,this);
@@ -143,8 +176,6 @@ void state_machine::init_state_machine() {
     state_transfer[controller_mode::attitude][mode_action::toManual] = controller_mode::manual;
     state_transfer[controller_mode::manual][mode_action::toAttitude] = controller_mode::attitude;
 
-    //For debug!!! Attetion
-//    mode = controller_mode ::attitude;
 }
 
 void state_machine::update_state_machine(mode_action act) {
@@ -157,8 +188,10 @@ void state_machine::update_state_machine(mode_action act) {
 
 void state_machine::update_rc_channels(RCChannels rc_value) {
     //TODO:Use real delta time
-    if (!using_rc_or_joy)
+    if (!using_rc_or_joy) {
         this->rc_value = rc_value;
+        RCUpdated = true;
+    }
 }
 
 void state_machine::update_joy(sensor_msgs::Joy joy_data) {
@@ -166,10 +199,11 @@ void state_machine::update_joy(sensor_msgs::Joy joy_data) {
     {
         if (joy_data.axes.size() < 4)
             return;
+        RCUpdated = true;
         this->rc_value.roll = joy_data.axes[0] * 10000;
         this->rc_value.pitch = joy_data.axes[1] * 10000;
         this->rc_value.throttle = joy_data.axes[2] * 10000;
-        this->rc_value.yaw = joy_data.axes[4] * 10000;
+        this->rc_value.yaw = joy_data.axes[3] * 10000;
         if (joy_data.buttons.size() < 1)
             return;
         this->rc_value.mode = joy_data.buttons[0] * 10000;

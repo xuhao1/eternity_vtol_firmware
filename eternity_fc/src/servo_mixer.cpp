@@ -15,7 +15,7 @@ inline float Sqrt(float a)
 }
 
 void servo_mixer::init(ros::NodeHandle &nh) {
-   actucator_control_pub = nh.advertise<sensor_msgs::Joy>("actucator_control_pub",10);
+   actucator_control_pub = nh.advertise<sensor_msgs::Joy>("actuators",10);
 
    nh.param("aileron_angle_ratio",aileron_angle_ratio,0.5f);
    nh.param("k_thrust_z_ratio",k_thrust_z_ratio,0.15f);
@@ -47,29 +47,53 @@ void servo_mixer::mode_sub_callback(const std_msgs::Int32 &mode) {
       this->arm = false;
    }
 }
-
+inline float rerange_servo(float v)
+{
+   if (v>1)
+      return 1.001;
+   if (v<-1)
+      return -1.001;
+}
 void servo_mixer::mixer()
 {
+   static int count = 0;
+   count ++;
    Eigen::Vector3f u_xyz;
    float Mx = before_mixer.axes[0];
    float My = before_mixer.axes[1];
    float Mz = before_mixer.axes[3];
-   float Thrust = (before_mixer.axes[2] + 1) /2;
+   float Thrust = before_mixer.axes[2];
+
    u_xyz << (-1.953624230872906e5*My*Mz - 1.0622537302872798e6*Mx*Thrust + 1.881710033408788e5*Mz*Thrust)/(3.1578475658491784e4*Power(Mz,2) - 2.898214227537045e6*Power(Thrust,2)),(-1.1088137526575953e5*Mx*Mz + 1.964187937464974e4*Power(Mz,2) - 1.8715899057442548e6*My*Thrust)/(3.1578475658491784e4*Power(Mz,2) - 2.898214227537045e6*Power(Thrust,2)),0.6958875712665018*Mz;
 
-
+   float al = 0,ar =0,ul =0 ,ur =0;
    //u 2 actuator
    //mix
-   float al = (u_xyz.x() - u_xyz.y());
-   float ar = (- u_xyz.x()- u_xyz.y());
+   al = (u_xyz.x() - u_xyz.y());
+   ar = (-u_xyz.x() - u_xyz.y());
+   if (Thrust < 0.1)
+   {
+      if (Thrust > 0) {
+         ul = sqrt(Thrust);
+         ur = sqrt(Thrust);
+      }
+      al = 0;
+      ar = 0;
+   }
+   else {
 
-   al = actuator_rerange(al,-aileron_angle_ratio,aileron_angle_ratio);
-   ar = actuator_rerange(ar,-aileron_angle_ratio,aileron_angle_ratio);
 
-   //ul from 0 to 1
-   float ul = sqrt(Thrust + u_xyz.y()* k_thrust_z_ratio);
-   //ul from 0 to 1
-   float ur = sqrt(Thrust - u_xyz.y()* k_thrust_z_ratio);
+      al = actuator_rerange(al, -aileron_angle_ratio, aileron_angle_ratio);
+      ar = actuator_rerange(ar, -aileron_angle_ratio, aileron_angle_ratio);
+
+      //ul from 0 to 1
+      if (Thrust + u_xyz.z() * k_thrust_z_ratio > 0)
+         ul = sqrt(Thrust + u_xyz.z() * k_thrust_z_ratio);
+
+      //ul from 0 to 1
+      if (Thrust - u_xyz.z() * k_thrust_z_ratio > 0)
+         ur = sqrt(Thrust - u_xyz.z() * k_thrust_z_ratio);
+   }
 
    ul = actuator_rerange(ul,-1,1,0,1);
    ur = actuator_rerange(ur,-1,1,0,1);
@@ -85,8 +109,17 @@ void servo_mixer::mixer()
       after_mixer.axes[2] = -1;
       after_mixer.axes[3] = -1;
    }
-   actucator_control_pub.publish(after_mixer);
 
+   for (int i = 0;i<8;i++)
+   {
+      if (isnan(after_mixer.axes[i])) {
+         after_mixer.axes[i] = 0;
+//         ROS_WARN("Axis:%d Nan",i);
+      }
+      else
+         after_mixer.axes[i] = trim(after_mixer.axes[i]);
+   }
+   actucator_control_pub.publish(after_mixer);
 }
 
 float servo_mixer::actuator_rerange(float v, float lowwer, float upper,float lowwer_origin,float upper_origin) {
@@ -109,8 +142,8 @@ void servo_mixer::update_before_mixer(sensor_msgs::Joy joy_data) {
 int main(int argc,char ** argv) {
    ros::init(argc, argv, "servo_mixer");
    ros::NodeHandle nh("servo_mixer");
-   ROS_INFO("SERVO MIXER Controller READY");
    servo_mixer sm(nh);
+   ROS_INFO("SERVO MIXER Controller READY");
    ros::spin();
 }
 

@@ -73,7 +73,14 @@ public:
 
     void init_state_machine();
 
+    bool hasRC = false;
 
+    bool RCUpdated = false;
+
+    int noRcUpdateCount = 0;
+
+    void checkArm();
+    void checkRC();
     //false:rc
     //true joy
     bool using_rc_or_joy;

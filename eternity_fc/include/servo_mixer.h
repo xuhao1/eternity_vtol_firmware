@@ -49,6 +49,16 @@ public:
 
     ros::Subscriber before_mixer_sub;
     void update_before_mixer(sensor_msgs::Joy joy_data);
+    float trim(float v)
+    {
+        if (v>1)
+            return 0.99;
+        if (v<-1)
+            return -0.99;
+        if (isnan(v))
+            return 0;
+        return v;
+    }
 };
 
 #endif
