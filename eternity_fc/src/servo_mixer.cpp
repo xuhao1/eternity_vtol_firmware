@@ -15,7 +15,7 @@ inline float Sqrt(float a)
 }
 
 void servo_mixer::init(ros::NodeHandle &nh) {
-   actucator_control_pub = nh.advertise<sensor_msgs::Joy>("actuators",10);
+   actucator_control_pub = nh.advertise<sensor_msgs::Joy>("/dji_sdk/possess_control",10);
 
    nh.param("aileron_angle_ratio",aileron_angle_ratio,0.5f);
    nh.param("k_thrust_z_ratio",k_thrust_z_ratio,0.15f);
@@ -106,8 +106,10 @@ void servo_mixer::mixer()
    }
    else
    {
-      after_mixer.axes[2] = -1;
-      after_mixer.axes[3] = -1;
+      after_mixer.axes[0] = 1;
+      after_mixer.axes[1] = 1;
+      after_mixer.axes[2] = 1;
+      after_mixer.axes[3] = 1;
    }
 
    for (int i = 0;i<8;i++)
@@ -117,7 +119,7 @@ void servo_mixer::mixer()
 //         ROS_WARN("Axis:%d Nan",i);
       }
       else
-         after_mixer.axes[i] = trim(after_mixer.axes[i]);
+         after_mixer.axes[i] = trim(after_mixer.axes[i]) * 100;
    }
    actucator_control_pub.publish(after_mixer);
 }

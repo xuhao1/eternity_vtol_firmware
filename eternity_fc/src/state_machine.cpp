@@ -126,12 +126,26 @@ void state_machine::slow_update(const ros::TimerEvent &event) {
     std_msgs::Int32 mode_tmp;
     mode_tmp.data = mode;
     mode_pub.publish(mode_tmp);
+
+    if(control_client)
+    {
+        dji_sdk::SDKPermissionControl req;
+        req.request.control_enable = true;
+        control_client.call(req);
+    }
+    else
+    {
+        ROS_INFO("Wrong with sdk permission request");
+//        control_client = nh.serviceClient<dji_sdk::SDKPermissionControl>("/dji_sdk/sdk_permission_control",true);
+    }
+
 }
 
 void state_machine::init(ros::NodeHandle &nh) {
     //TODO:is that right?
     rc_channels_sub = nh.subscribe("/dji_sdk/rc_channels",10,&state_machine::update_rc_channels,this);
     joy_sub = nh.subscribe("/joy",10,&state_machine::update_joy,this);
+    sdk_permission_sub = nh.subscribe("dji_sdk/sdk_permission",10,&state_machine::update_control_permission,this);
 
     angular_velocity_sp_pub = nh.advertise<eternity_fc::angular_velocity_sp>("angular_velocity_sp",10);
     attitude_sp_pub = nh.advertise<eternity_fc::attitude_sp>("attitude_sp",10);
@@ -156,6 +170,8 @@ void state_machine::init(ros::NodeHandle &nh) {
     rc_value.pitch = 0;
     rc_value.roll = 0;
     rc_value.yaw = 0;
+
+    control_client = nh.serviceClient<dji_sdk::SDKPermissionControl>("/dji_sdk/sdk_permission_control",true);
 }
 
 void state_machine::init_state_machine() {
@@ -192,6 +208,10 @@ void state_machine::update_rc_channels(RCChannels rc_value) {
         this->rc_value = rc_value;
         RCUpdated = true;
     }
+}
+void state_machine::update_control_permission(std_msgs::UInt8 data) {
+    ROS_INFO("control :%d",data.data);
+    this->obtained_control = data.data > 0;
 }
 
 void state_machine::update_joy(sensor_msgs::Joy joy_data) {

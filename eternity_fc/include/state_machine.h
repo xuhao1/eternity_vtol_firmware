@@ -11,7 +11,9 @@
 #include <eternity_fc/attitude_sp.h>
 #include <eternity_fc/angular_velocity_sp.h>
 #include <std_msgs/Int32.h>
+#include <std_msgs/UInt8.h>
 #include <sensor_msgs/Joy.h>
+#include <dji_sdk/SDKPermissionControl.h>
 
 using namespace dji_sdk;
 
@@ -20,6 +22,7 @@ enum controller_mode {
     disarm = 1,
     attitude = 2,
     manual = 3,
+    debug_possess_control = 4,
     mode_end
 };
 
@@ -41,6 +44,8 @@ public:
 
     ros::Subscriber rc_channels_sub;
     ros::Subscriber joy_sub;
+    ros::Subscriber sdk_permission_sub;
+    ros::ServiceClient control_client;
 
     void update_rc_channels(RCChannels rc_value);
     void update_joy(sensor_msgs::Joy joy_data);
@@ -61,15 +66,17 @@ public:
     float max_vertical_speed;
     float max_angular_velocity;
     bool rc_trying_arm = false;
-    state_machine (ros::NodeHandle & nh)
+    state_machine (ros::NodeHandle & _nh):
+            nh(_nh)
     {
-        init(nh);
+        init(_nh);
     }
 
     controller_mode state_transfer[10][10];
 
     void update_state_machine(mode_action act);
     void update_set_points();
+    void update_control_permission(std_msgs::UInt8 data);
 
     void init_state_machine();
 
@@ -78,6 +85,9 @@ public:
     bool RCUpdated = false;
 
     int noRcUpdateCount = 0;
+
+    bool obtained_control = false;
+    ros::NodeHandle & nh;
 
     void checkArm();
     void checkRC();
