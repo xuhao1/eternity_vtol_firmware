@@ -7,6 +7,7 @@
 #include <vector>
 #include <eigen3/Eigen/Eigen>
 #include <state_machine.h>
+#include <eternity_fc/angular_velocity_sp.h>
 
 class servo_mixer
 {
@@ -32,11 +33,12 @@ public:
     //ratio using how much thrust for mz
     float k_thrust_z_ratio;
 
-    static float actuator_rerange(float v,float lowwer,float upper,float lowwer_origin = -1 ,float upper_origin = 1);
+    static float actuator_rerange(float v,float lowwer = 0,float upper = 100,float lowwer_origin = -1 ,float upper_origin = 1);
 
     ros::Publisher actucator_control_pub;
 
     bool arm = false;
+    eternity_fc::angular_velocity_sp rc_posses_data;
 
     ros::Timer fast_timer;
     ros::Timer slow_timer;
@@ -44,19 +46,21 @@ public:
     void mode_sub_callback(const std_msgs::Int32 & mode);
 
     ros::Subscriber mode_sub;
+    ros::Subscriber rc_possess_sub;
 
     controller_mode mode =  controller_mode::nothing;
 
     ros::Subscriber before_mixer_sub;
     void update_before_mixer(sensor_msgs::Joy joy_data);
+    void update_rc_values(eternity_fc::angular_velocity_sp data);
     float trim(float v)
     {
-        if (v>1)
-            return 0.99;
+        if (v>100)
+            return 100;
         if (v<0)
             return 0;
         if (isnan(v))
-            return 0;
+            return 50;
         return v;
     }
 };

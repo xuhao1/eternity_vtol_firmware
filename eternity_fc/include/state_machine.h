@@ -28,9 +28,11 @@ enum controller_mode {
 
 enum mode_action {
     donothing = 0,
-    arm = 1,
-    toManual = 2,
-    toAttitude = 3,
+    try_arm = 1,
+    try_disarm = 2,
+    toManual = 3,
+    toAttitude = 4,
+    toPossess = 5,
     action_end
 };
 
@@ -45,6 +47,7 @@ public:
     ros::Subscriber rc_channels_sub;
     ros::Subscriber joy_sub;
     ros::Subscriber sdk_permission_sub;
+    ros::Subscriber flight_status_mode_sub;
     ros::ServiceClient control_client;
 
     void update_rc_channels(RCChannels rc_value);
@@ -77,6 +80,7 @@ public:
     void update_state_machine(mode_action act);
     void update_set_points();
     void update_control_permission(std_msgs::UInt8 data);
+    void update_flight_status(std_msgs::UInt8 data);
 
     void init_state_machine();
 
@@ -95,6 +99,8 @@ public:
     //true joy
     bool using_rc_or_joy;
     bool in_simulator;
+
+    int flight_status = 0;
 
 };
 

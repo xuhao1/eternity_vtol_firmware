@@ -30,8 +30,9 @@ void servo_mixer::init(ros::NodeHandle &nh) {
 
    mode_sub = nh.subscribe("/state_machine/fc_mode",10,&servo_mixer::mode_sub_callback,this);
    before_mixer_sub = nh.subscribe("/attitude_controller/mixer",10,&servo_mixer::update_before_mixer,this);
+   rc_possess_sub = nh.subscribe("/state_machine/angular_velocity_sp",10,&servo_mixer::update_rc_values,this);
 
-   fast_timer = nh.createTimer(ros::Rate(100),&servo_mixer::fast_update,this);
+   fast_timer = nh.createTimer(ros::Rate(50),&servo_mixer::fast_update,this);
 //   slow_timer = nh.createTimer(ros::Rate(10),&servo_mixer::slow_update,this);
 }
 
@@ -53,6 +54,9 @@ inline float rerange_servo(float v)
       return 1.001;
    if (v<-1)
       return -1.001;
+}
+void servo_mixer::update_rc_values(eternity_fc::angular_velocity_sp data) {
+   this->rc_posses_data = data;
 }
 void servo_mixer::mixer()
 {
@@ -83,8 +87,8 @@ void servo_mixer::mixer()
    else {
 
 
-      al = actuator_rerange(al, -aileron_angle_ratio, aileron_angle_ratio);
-      ar = actuator_rerange(ar, -aileron_angle_ratio, aileron_angle_ratio);
+      al = actuator_rerange(al, 50 * (1 - aileron_angle_ratio),50 * (1 + aileron_angle_ratio));
+      al = actuator_rerange(al, 50 * (1 - aileron_angle_ratio),50 * (1 + aileron_angle_ratio));
 
       //ul from 0 to 1
       if (Thrust + u_xyz.z() * k_thrust_z_ratio > 0)
@@ -93,16 +97,24 @@ void servo_mixer::mixer()
       //ul from 0 to 1
       if (Thrust - u_xyz.z() * k_thrust_z_ratio > 0)
          ur = sqrt(Thrust - u_xyz.z() * k_thrust_z_ratio);
-   }
 
-   ul = actuator_rerange(ul,0,1,0,1);
-   ur = actuator_rerange(ur,0,1,0,1);
+      ul = actuator_rerange(ul,0,100,0,1);
+      ur = actuator_rerange(ur,0,100,0,1);
+   }
 
    after_mixer.axes[0] = al;
    after_mixer.axes[1] = ar;
    if (this->arm) {
       after_mixer.axes[2] = ul;
       after_mixer.axes[3] = ur;
+      if (this->mode == controller_mode::debug_possess_control)
+      {
+//         ROS_INFO("try to possess control");
+         after_mixer.axes[0] = actuator_rerange(rc_posses_data.wx);
+         after_mixer.axes[1] = actuator_rerange(rc_posses_data.wy);
+         after_mixer.axes[2] = actuator_rerange(rc_posses_data.throttle);
+         after_mixer.axes[3] = actuator_rerange(rc_posses_data.wz);
+      }
    }
    else
    {
@@ -112,6 +124,8 @@ void servo_mixer::mixer()
       after_mixer.axes[3] = 0;
    }
 
+   //Trim
+
    for (int i = 0;i<8;i++)
    {
       if (isnan(after_mixer.axes[i])) {
@@ -119,7 +133,7 @@ void servo_mixer::mixer()
 //         ROS_WARN("Axis:%d Nan",i);
       }
       else
-         after_mixer.axes[i] = trim(after_mixer.axes[i]) * 100;
+         after_mixer.axes[i] = trim(after_mixer.axes[i]);
    }
    actucator_control_pub.publish(after_mixer);
 }

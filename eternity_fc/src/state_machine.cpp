@@ -37,41 +37,11 @@ void state_machine::checkRC() {
 
 }
 void state_machine::checkArm() {
-    mode_action  action = mode_action::donothing ;
-    static int rc_arm_tick = 0;
-    bool rc_trying_arm = false;
-    if (!using_rc_or_joy)
-    {
-        if (rc_value.throttle < -9500 && rc_value.pitch < -9500 && rc_value.yaw > 9500 && rc_value.roll < -9500)
-        {
-            rc_trying_arm = true;
-        }
+    mode_action  action = mode_action::try_disarm ;
+    if (flight_status == 3) {
+        action = mode_action::try_arm;
     }
-    else{
-        if (rc_value.throttle < -9900 && rc_value.pitch < -9900)
-        {
-            rc_trying_arm = true;
-        }
-    }
-    if (rc_trying_arm)
-    {
-        rc_arm_tick ++;
-    } else {
-        rc_arm_tick = 0;
-    }
-
-    this->rc_trying_arm = rc_trying_arm;
-
-    if (rc_arm_tick > 100)
-    {
-        rc_arm_tick = 0;
-        action = mode_action::arm;
-        ROS_INFO("ARM!!!!");
-    }
-
     update_state_machine(action);
-
-
 
 }
 void state_machine::update_set_points() {
@@ -96,9 +66,10 @@ void state_machine::update_set_points() {
             att_sp.z = quat_sp.z();
             attitude_sp_pub.publish(att_sp);
             break;
-        }
+        };
 
-        case controller_mode::manual : {
+        case controller_mode::manual :
+        {
             eternity_fc::angular_velocity_sp angular_velocity_sp;
             angular_velocity_sp.wx = rc_value.roll * max_angular_velocity / 10000.0f;
             angular_velocity_sp.wy = rc_value.pitch * max_angular_velocity / 10000.0f;
@@ -106,7 +77,20 @@ void state_machine::update_set_points() {
             angular_velocity_sp.throttle = rc_value.throttle / 10000.0f;
             angular_velocity_sp_pub.publish(angular_velocity_sp);
             break;
-        }
+        };
+
+          case debug_possess_control:
+          {
+              eternity_fc::angular_velocity_sp angular_velocity_sp;
+              angular_velocity_sp.wx = rc_value.roll / 10000.0f;
+              angular_velocity_sp.wy = rc_value.pitch/ 10000.0f;
+              angular_velocity_sp.wz = rc_value.yaw /10000.0f;
+              angular_velocity_sp.throttle = rc_value.throttle / 10000.0f;
+              angular_velocity_sp_pub.publish(angular_velocity_sp);
+              break;
+
+          }
+
     }
 }
 
@@ -114,13 +98,16 @@ void state_machine::slow_update(const ros::TimerEvent &event) {
     checkRC();
     //change state
     mode_action  action = mode_action::donothing;
-    if (rc_value.mode <-9500)
+    if (rc_value.gear <-7000)
     {
          action = mode_action::toManual;
     }
-    if(rc_value.mode > 9500)
+    if(rc_value.gear < 1000 && rc_value.gear > -1000)
     {
         action = mode_action::toAttitude;
+    }
+    if(rc_value.gear > 7000) {
+        action = mode_action::toPossess;
     }
 
     update_state_machine(action);
@@ -142,7 +129,8 @@ void state_machine::init(ros::NodeHandle &nh) {
     //TODO:is that right?
     rc_channels_sub = nh.subscribe("/dji_sdk/rc_channels",10,&state_machine::update_rc_channels,this);
     joy_sub = nh.subscribe("/joy",10,&state_machine::update_joy,this);
-    sdk_permission_sub = nh.subscribe("dji_sdk/sdk_permission",10,&state_machine::update_control_permission,this);
+    sdk_permission_sub = nh.subscribe("/dji_sdk/sdk_permission",10,&state_machine::update_control_permission,this);
+    flight_status_mode_sub = nh.subscribe("/dji_sdk/flight_status",10,&state_machine::update_flight_status,this);
 
     angular_velocity_sp_pub = nh.advertise<eternity_fc::angular_velocity_sp>("angular_velocity_sp",10);
     attitude_sp_pub = nh.advertise<eternity_fc::attitude_sp>("attitude_sp",10);
@@ -175,6 +163,10 @@ void state_machine::init(ros::NodeHandle &nh) {
 
 }
 
+void state_machine::update_flight_status(std_msgs::UInt8 data) {
+    flight_status = data.data;
+}
+
 void state_machine::init_state_machine() {
     mode = controller_mode::disarm;
 
@@ -186,12 +178,18 @@ void state_machine::init_state_machine() {
         }
     }
 
-    state_transfer[controller_mode::disarm][mode_action::arm] = controller_mode::attitude;
-    state_transfer[controller_mode::attitude][mode_action::arm] = controller_mode::disarm;
-    state_transfer[controller_mode::manual][mode_action::arm] = controller_mode::disarm;
+    state_transfer[controller_mode::disarm][mode_action::try_arm] = controller_mode::attitude;
+    state_transfer[controller_mode::attitude][mode_action::try_disarm] = controller_mode::disarm;
+    state_transfer[controller_mode::manual][mode_action::try_disarm] = controller_mode::disarm;
+    state_transfer[controller_mode::debug_possess_control][mode_action::try_disarm] = controller_mode::disarm;
 
     state_transfer[controller_mode::attitude][mode_action::toManual] = controller_mode::manual;
+    state_transfer[controller_mode::debug_possess_control][mode_action::toManual] = controller_mode::manual;
     state_transfer[controller_mode::manual][mode_action::toAttitude] = controller_mode::attitude;
+    state_transfer[controller_mode::debug_possess_control][mode_action::toAttitude] = controller_mode::attitude;
+
+    state_transfer[controller_mode::attitude][mode_action::toPossess] = controller_mode::debug_possess_control;
+    state_transfer[controller_mode::manual][mode_action::toPossess] = controller_mode::debug_possess_control;
 
     mode = controller_mode ::attitude;
 }
@@ -200,6 +198,26 @@ void state_machine::update_state_machine(mode_action act) {
     controller_mode  mode_tmp = state_transfer[mode][act];
     if (mode_tmp != controller_mode::nothing)
     {
+        if (mode_tmp != mode)
+        {
+            switch (mode_tmp)
+            {
+                case controller_mode ::disarm:
+                    ROS_INFO("Disarm!!!");
+                    break;
+                case controller_mode ::attitude:
+                    ROS_INFO("Attitude!!!");
+                    break;
+                case controller_mode ::manual:
+                    ROS_INFO("Manual!!!");
+                    break;
+                case controller_mode ::debug_possess_control:
+                    ROS_INFO("Possess Control!!!");
+                    break;
+                default:
+                    ROS_INFO("Unknow State %d",mode_tmp);
+            }
+        }
         mode = mode_tmp;
     }
 }
@@ -212,7 +230,7 @@ void state_machine::update_rc_channels(RCChannels rc_value) {
     }
 }
 void state_machine::update_control_permission(std_msgs::UInt8 data) {
-    ROS_INFO("control :%d",data.data);
+//    ROS_INFO("control :%d",data.data);
     this->obtained_control = data.data > 0;
 }
 
