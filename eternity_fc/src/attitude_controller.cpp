@@ -289,10 +289,6 @@ void attitude_controller::head_velocity_control(float DeltaTime, float head_velo
 
 	Thrust = throttle_acc/9.81;
 	//Thrust from 0->1
-//	ROS_INFO("acc sp %f thrust %f",acc_sp,Thrust);
-
-
-//	ROS_INFO("vel err:%f errd :%f err_intt %f",err,err_d,intt_head_velocity_err);
 }
 
 
