@@ -95,8 +95,8 @@ void servo_mixer::mixer()
          ur = sqrt(Thrust - u_xyz.z() * k_thrust_z_ratio);
    }
 
-   ul = actuator_rerange(ul,-1,1,0,1);
-   ur = actuator_rerange(ur,-1,1,0,1);
+   ul = actuator_rerange(ul,0,1,0,1);
+   ur = actuator_rerange(ur,0,1,0,1);
 
    after_mixer.axes[0] = al;
    after_mixer.axes[1] = ar;
@@ -106,10 +106,10 @@ void servo_mixer::mixer()
    }
    else
    {
-      after_mixer.axes[0] = 1;
-      after_mixer.axes[1] = 1;
-      after_mixer.axes[2] = 1;
-      after_mixer.axes[3] = 1;
+      after_mixer.axes[0] = 0;
+      after_mixer.axes[1] = 0;
+      after_mixer.axes[2] = 0;
+      after_mixer.axes[3] = 0;
    }
 
    for (int i = 0;i<8;i++)

@@ -71,12 +71,14 @@ void state_machine::checkArm() {
 
     update_state_machine(action);
 
+
+
 }
 void state_machine::update_set_points() {
       switch (mode) {
         case controller_mode::attitude : {
-            Eigen::Quaternionf base_quat ( Eigen::AngleAxisf(M_PI /2, Eigen::Vector3f::UnitY()));
-//            Eigen::Quaternionf base_quat ( Eigen::AngleAxisf(5*M_PI / 180.0, Eigen::Vector3f::UnitY()));
+//            Eigen::Quaternionf base_quat ( Eigen::AngleAxisf(M_PI /2, Eigen::Vector3f::UnitY()));
+            Eigen::Quaternionf base_quat ( Eigen::AngleAxisf(5*M_PI / 180.0, Eigen::Vector3f::UnitY()));
             float roll_sp = rc_value.roll * max_attitude_angle / 10000.0f;
             float pitch_sp = rc_value.pitch * max_attitude_angle /10000.0f;
             static float yaw_sp = 0;
@@ -127,16 +129,11 @@ void state_machine::slow_update(const ros::TimerEvent &event) {
     mode_tmp.data = mode;
     mode_pub.publish(mode_tmp);
 
-    if(control_client)
+    if (!in_simulator && control_client)
     {
         dji_sdk::SDKPermissionControl req;
         req.request.control_enable = true;
         control_client.call(req);
-    }
-    else
-    {
-        ROS_INFO("Wrong with sdk permission request");
-//        control_client = nh.serviceClient<dji_sdk::SDKPermissionControl>("/dji_sdk/sdk_permission_control",true);
     }
 
 }
@@ -157,6 +154,7 @@ void state_machine::init(ros::NodeHandle &nh) {
     nh.param("max_vertical_speed",max_vertical_speed,5.0f);
     nh.param("max_angular_velocity",max_angular_velocity,2.0f);
     nh.param("using_rc_or_joy",using_rc_or_joy,false);
+    nh.getParam("in_simulator",in_simulator);
 
     slow_timer = nh.createTimer(ros::Rate(10),&state_machine::slow_update,this);
     fast_timer = nh.createTimer(ros::Rate(100),&state_machine::fast_update,this);
@@ -171,7 +169,10 @@ void state_machine::init(ros::NodeHandle &nh) {
     rc_value.roll = 0;
     rc_value.yaw = 0;
 
-    control_client = nh.serviceClient<dji_sdk::SDKPermissionControl>("/dji_sdk/sdk_permission_control",true);
+    if (!in_simulator)
+        control_client = nh.serviceClient<dji_sdk::SDKPermissionControl>("/dji_sdk/sdk_permission_control",true);
+
+
 }
 
 void state_machine::init_state_machine() {
@@ -192,6 +193,7 @@ void state_machine::init_state_machine() {
     state_transfer[controller_mode::attitude][mode_action::toManual] = controller_mode::manual;
     state_transfer[controller_mode::manual][mode_action::toAttitude] = controller_mode::attitude;
 
+    mode = controller_mode ::attitude;
 }
 
 void state_machine::update_state_machine(mode_action act) {

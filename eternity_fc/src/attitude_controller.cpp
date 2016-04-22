@@ -69,8 +69,8 @@ void attitude_controller::run_controller(const ros::TimerEvent &timerEvent) {
 			att_sp.y() = attitude_sp.y;
 			att_sp.z() = attitude_sp.z;
 			so3_attitude_controller(deltatime,att_sp);
-			head_velocity_control(deltatime,attitude_sp.head_speed);
-			//Thrust = (angular_velocity_sp.throttle + 1 )/2;
+//			head_velocity_control(deltatime,attitude_sp.head_speed);
+			Thrust = (angular_velocity_sp.throttle + 1 )/2;
 			break;
 		}
 		default:
@@ -149,6 +149,10 @@ void attitude_controller::update_params(ros::NodeHandle & nh) {
 	nh.param("angular_velocity_p_y",angular_velocity_p.y(),1.0f);
 	nh.param("angular_velocity_p_z",angular_velocity_p.z(),1.0f);
 
+	nh.param("angular_velocity_d_x",angular_velocity_d.x(),1.0f);
+	nh.param("angular_velocity_d_y",angular_velocity_d.y(),1.0f);
+	nh.param("angular_velocity_d_z",angular_velocity_d.z(),1.0f);
+
 	nh.param("attitude_p_x",attitude_p.x(),2.0f);
 	nh.param("attitude_p_y",attitude_p.y(),2.0f);
 	nh.param("attitude_p_z",attitude_p.z(),2.0f);
@@ -207,17 +211,18 @@ void attitude_controller::angle_axis_from_quat(Quaternionf q0, Quaternionf q_sp,
 
 void attitude_controller::angular_velocity_controller(float DeltaTime, Vector3f angular_vel_sp)
 {
+	static Vector3f err_last = Vector3f(0,0,0);
 	Vector3f err = angular_vel_sp - angular_velocity;
-	Vector3f tmp = err;
 	//filter
-
+	Vector3f err_d = (err - err_last)/deltatime;
+	err_last = err;
 //	err = (err + angular_vel_err_last) / 2;
 //	angular_vel_err_last = tmp;
 //	ROS_INFO("ERR: %f %f %f",err.x(),err.y(),err.z());
 
-	Aileron = err.x() * angular_velocity_p.x();// +err_d.x() * AngularVelocity_D;
-	Elevator = err.y() * angular_velocity_p.y();// +err_d.y() * AngularVelocity_D;
-	Rudder = err.z() * angular_velocity_p.z();// +err_d.z() * AngularVelocity_D;
+	Aileron = err.x() * angular_velocity_p.x() + err_d.x() * angular_velocity_d.x();
+	Elevator = err.y() * angular_velocity_p.y() + err_d.y() * angular_velocity_d.y();
+	Rudder = err.z() * angular_velocity_p.z() + err_d.z() * angular_velocity_d.z();
 
 	static int count = 0;
 	if (count++ % 1 == 0) {
@@ -265,7 +270,13 @@ void attitude_controller::head_velocity_control(float DeltaTime, float head_velo
 		intt_head_velocity_err = -5 * head_velocity_i;
 	}
 
-
+	Vector3f Up = this->attitude._transformVector(Vector3f(1,0,0));
+	float factor = Up.dot(Vector3f(1,0,0));
+	if (factor < 0.707)
+	{
+		//Should be fixed wing Mode,no more thrust need
+		factor = 1;
+	}
 	//calc the vertical acc setpoint
 	float acc_sp = err * head_velocity_p + err_d * head_velocity_d + intt_head_velocity_err * head_velocity_i;
 	//inverse vertical acc sp to throttle
@@ -273,7 +284,7 @@ void attitude_controller::head_velocity_control(float DeltaTime, float head_velo
 	{
 		acc_sp = -9.81;
 	}
-	float acc_sp_with_gra = acc_sp + 9.81;
+	float acc_sp_with_gra = acc_sp + 9.81/factor;
 	float throttle_acc = acc_sp_with_gra;
 
 	Thrust = throttle_acc/9.81;

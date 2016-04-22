@@ -59,6 +59,7 @@ public:
     //params
     Vector3f max_angular_velocity;
     Vector3f angular_velocity_p;
+    Vector3f angular_velocity_d;
     Vector3f attitude_p;
     Vector3f attitude_i;
     Vector3f attitude_d;

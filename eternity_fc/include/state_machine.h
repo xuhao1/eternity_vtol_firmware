@@ -94,6 +94,7 @@ public:
     //false:rc
     //true joy
     bool using_rc_or_joy;
+    bool in_simulator;
 
 };
 

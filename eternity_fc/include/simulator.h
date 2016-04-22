@@ -55,16 +55,17 @@ public:
 
     //float Cl
     float S = 0.4;
-    float d_mass_air = - 0.00;
+    float d_mass_air = - 0.1;
     //float
 
     //Ct = a J + b;
     float A_ct = - 0.15;
     float B_ct = 0.09 ;
 
-    float airdynamic_damping_rate_x = 0.02;
-    float airdynamic_damping_rate_y = 0.01;
-    float airdynamic_damping_rate_z = 0.005;
+    float airdynamic_damping_rate_x = 0.5;
+    float airdynamic_damping_rate_y = 0.2;
+    float airdynamic_damping_rate_z = 0.1;
+    Eigen::Vector3f wind_speed = Eigen::Vector3f(-0,0,0);
 
     float mass;
 

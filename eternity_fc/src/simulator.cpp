@@ -1,5 +1,5 @@
 #include "simulator.h"
-#define deltatime 0.01
+#define deltatime 0.001
 using namespace Eigen;
 
 inline float Power(float a, float b)
@@ -12,8 +12,9 @@ void simulator::init(ros::NodeHandle & nh)
 
     nh.param("disable_torque",disable_torque,0);
     nh.getParam("mass",mass);
+    nh.param("simulator/d_mass_air",d_mass_air,-0.1f);
 
-    actuator_sub = nh.subscribe("/servo_mixer/actuators",10,&simulator::UpdateActuator,this);
+    actuator_sub = nh.subscribe("/dji_sdk/possess_control",10,&simulator::UpdateActuator,this);
 
 
     fc_mode_sub = nh.subscribe("/state_machine/fc_mode",10,&simulator::UpdateFcMode,this);
@@ -31,12 +32,17 @@ void simulator::init(ros::NodeHandle & nh)
     mode = controller_mode ::nothing;
 //    ROS_INFO("disable torque : %d",disable_torque);
     ROS_INFO("Mass %f",mass);
+    ROS_INFO("d mass air %5f",d_mass_air);
 
     this->rigidBody.mass = mass;
 }
 
 
 void simulator::UpdateActuator(sensor_msgs::Joy joy) {
+    for (int i = 0;i<joy.axes.size();i++)
+    {
+        joy.axes[i] = joy.axes[i] /100;
+    }
     this->actuators = joy;
 }
 
@@ -55,36 +61,33 @@ void simulator::UpdateTimer(const ros::TimerEvent & timerEvent) {
     attitude = rigidBody.get_attitude().cast<float>();
     local_velocity = attitude.inverse()._transformVector(rigidBody.get_velocity().cast<float>());
 
-    odom.pose.pose.position.x = pos.x();
-    odom.pose.pose.position.y = pos.y();
-    odom.pose.pose.position.z = - pos.z();
+    if (count % 10 == 0) {
+        odom.pose.pose.position.x = pos.x();
+        odom.pose.pose.position.y = pos.y();
+        odom.pose.pose.position.z = -pos.z();
 
-    odom.pose.pose.orientation.w = attitude.w();
-    odom.pose.pose.orientation.x = attitude.x();
-    odom.pose.pose.orientation.y = attitude.y();
-    odom.pose.pose.orientation.z = attitude.z();
+        odom.pose.pose.orientation.w = attitude.w();
+        odom.pose.pose.orientation.x = attitude.x();
+        odom.pose.pose.orientation.y = attitude.y();
+        odom.pose.pose.orientation.z = attitude.z();
 
-    odom.twist.twist.linear.x = vel.x();
-    odom.twist.twist.linear.y = vel.y();
-    odom.twist.twist.linear.z = - vel.z();
+        odom.twist.twist.linear.x = vel.x();
+        odom.twist.twist.linear.y = vel.y();
+        odom.twist.twist.linear.z = -vel.z();
 
-    odom.twist.twist.angular.x = angular_velocity.x();
-    odom.twist.twist.angular.y = angular_velocity.y();
-    odom.twist.twist.angular.z = angular_velocity.z();
+        odom.twist.twist.angular.x = angular_velocity.x();
+        odom.twist.twist.angular.y = angular_velocity.y();
+        odom.twist.twist.angular.z = angular_velocity.z();
 
-    odometry_pub.publish(odom);
-    //acc_pub.publish(acc_pub);
+        odometry_pub.publish(odom);
+        //acc_pub.publish(acc_pub);
+    }
 
     Vector3d force = CalcForce().cast<double>();
     Vector3d torque = CalcTorque().cast<double>();
     rigidBody.set_force(force.cast<double>());
     rigidBody.set_torque(torque.cast<double>());
     rigidBody.sim_step(deltatime);
-
-    if (count % 10 ==0)
-    {
-        //ROS_INFO("time %f",((float)count) * deltatime);
-    }
 }
 
 Eigen::Vector3f simulator::CalcForce() {
@@ -109,13 +112,18 @@ Eigen::Vector3f simulator::air_dynamic_force() {
     static int count = 0;
     count ++;
     Vector3f airdynamic_force(0,0,0);
+
+    Vector3f vel = rigidBody.get_velocity().cast<float>();
+    Vector3f local_velocity = attitude.inverse()._transformVector(vel-wind_speed);
+
+
     if (local_velocity.norm()>0.1)
     {
         float v = local_velocity.norm();
         float a = - atan2f(local_velocity.z(),local_velocity.x());
 
         //0.087 is angle for 5 deg,this is for origin fraction
-        float drag = (2*sin(a)*sin(a) + 0.087)* 0.5 *S * v*v;
+        float drag = (2*sin(a)*sin(a) + 2*0.087*0.087)* 0.5 *S * v*v;
         float lift = sin(2*a) * 0.5*S *v *v;
 
         //Drag force
@@ -126,9 +134,9 @@ Eigen::Vector3f simulator::air_dynamic_force() {
         lift3f = lift3f.normalized() * lift;
         airdynamic_force = airdynamic_force + lift3f;
 
-        if (count % 10 == 1) {
-//            ROS_INFO("local vel %f %f %f drag %5f lift %5f %d",local_velocity.x(),local_velocity.y(),local_velocity.z(),drag,lift,count);
-//            ROS_INFO("Air Force %f %f %f",airdynamic_force.x(),airdynamic_force.y(),airdynamic_force.z());
+        if (count % 100 == 1) {
+            ROS_INFO("local vel %f %f %f drag %5f lift %5f %d",local_velocity.x(),local_velocity.y(),local_velocity.z(),drag,lift,count);
+            ROS_INFO("Air Force %f %f %f",airdynamic_force.x(),airdynamic_force.y(),airdynamic_force.z());
         }
     }
 //    return Vector3f(0,0,0);
@@ -154,15 +162,18 @@ float simulator::propellor_force(float n) {
     return T;
 }
 Eigen::Vector3f simulator::AirdynamicDamping() {
-    float damping_x = - airdynamic_damping_rate_x * angular_velocity.x() * angular_velocity.x();
-    if (angular_velocity.x() < 0)
-        damping_x = - damping_x;
-    float damping_y = - airdynamic_damping_rate_y * angular_velocity.y() * angular_velocity.y();
-    if (angular_velocity.y() < 0)
-        damping_y = - damping_y;
-    float damping_z = - airdynamic_damping_rate_z * angular_velocity.z() * angular_velocity.z();
-    if (angular_velocity.z() < 0)
-        damping_z = - damping_z;
+//    float damping_x = - airdynamic_damping_rate_x * angular_velocity.x() * angular_velocity.x();
+//    if (angular_velocity.x() < 0)
+//        damping_x = - damping_x;
+    float damping_x = -airdynamic_damping_rate_x * angular_velocity.x();
+//    float damping_y = - airdynamic_damping_rate_y * angular_velocity.y() * angular_velocity.y();
+//    if (angular_velocity.y() < 0)
+//        damping_y = - damping_y;
+    float damping_y = -airdynamic_damping_rate_y * angular_velocity.y();
+//    float damping_z = - airdynamic_damping_rate_z * angular_velocity.z() * angular_velocity.z();
+//    if (angular_velocity.z() < 0)
+//        damping_z = - damping_z;
+    float damping_z = -airdynamic_damping_rate_z * angular_velocity.z();
     return Eigen::Vector3f(damping_x,damping_y,damping_z);
 }
 Eigen::Vector3f simulator::CalcTorque() {
@@ -178,8 +189,8 @@ Eigen::Vector3f simulator::CalcTorque() {
     Vector3f M;
     M << (0.00002690160416922408 + 0.00008260145139059342*al)*Power(nl, 2) + (-0.00002690160416922408 - 0.00008260145139059342*ar)*Power(nr, 2), -0.00004688190484330978*al*Power(nl, 2) - 0.00004688190484330978*ar*Power(nr, 2), 0.00015186361805013624*Power(nl, 2) - 0.00015186361805013624*Power(nr, 2);
     Vector3f airdyamic_center(d_mass_air,0,0);
-//    Vector3f air_dynamic_torque = airdyamic_center.cross(air_dynamic_force()) + AirdynamicDamping();
-    Vector3f air_dynamic_torque = AirdynamicDamping();
+    Vector3f air_dynamic_torque = airdyamic_center.cross(air_dynamic_force()) + AirdynamicDamping();
+//    Vector3f air_dynamic_torque = AirdynamicDamping();
     return M + air_dynamic_torque;
 }
 

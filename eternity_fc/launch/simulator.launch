@@ -7,17 +7,23 @@
         <param name="max_yaw_speed" value="270"/>
     </node>
     <node pkg="eternity_fc" type="attitude_controller_node" name="attitude_controller" output="screen">
-        <param name="angular_velocity_p_x" value="0.2"/>
-        <param name="angular_velocity_p_y" value="0.1"/>
-        <param name="angular_velocity_p_z" value="0.08"/>
+        <param name="angular_velocity_p_x" value="0.8"/>
+        <param name="angular_velocity_p_y" value="0.5"/>
+        <param name="angular_velocity_p_z" value="0.2"/>
+
+        <param name="angular_velocity_d_x" value="0.0"/>
+        <param name="angular_velocity_d_y" value="0.0"/>
+        <param name="angular_velocity_d_z" value="0.0"/>
+
         <param name="attitude_p_x" value="3"/>
         <param name="attitude_p_y" value="3"/>
         <param name="attitude_p_z" value="3"/>
         <param name="head_velocity_p" value="5"/>
         <param name="head_velocity_i" value="5"/>
-        <param name="using_unreal" value="false"/>
+        <param name="in_simulator" value="true"/>
     </node>
     <node pkg="eternity_fc" type="simulator_node" name="simulator" output="screen">
+        <param name="d_mass_air" value="0.0"/>
     </node>
     <node pkg="eternity_fc" type="servo_mixer_node" name="servo_mixer" output="screen">
     </node>

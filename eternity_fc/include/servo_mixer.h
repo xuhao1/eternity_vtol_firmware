@@ -53,8 +53,8 @@ public:
     {
         if (v>1)
             return 0.99;
-        if (v<-1)
-            return -0.99;
+        if (v<0)
+            return 0;
         if (isnan(v))
             return 0;
         return v;
