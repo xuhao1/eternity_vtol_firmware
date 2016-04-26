@@ -67,40 +67,52 @@ void servo_mixer::mixer()
    float My = before_mixer.axes[1];
    float Mz = before_mixer.axes[3];
    float Thrust = before_mixer.axes[2];
+   if (Thrust < 0)
+   {
+      Thrust = 0;
+   }
 
-   u_xyz << (-1.953624230872906e5*My*Mz - 1.0622537302872798e6*Mx*Thrust + 1.881710033408788e5*Mz*Thrust)/(3.1578475658491784e4*Power(Mz,2) - 2.898214227537045e6*Power(Thrust,2)),(-1.1088137526575953e5*Mx*Mz + 1.964187937464974e4*Power(Mz,2) - 1.8715899057442548e6*My*Thrust)/(3.1578475658491784e4*Power(Mz,2) - 2.898214227537045e6*Power(Thrust,2)),0.6958875712665018*Mz;
+   if (Thrust > 0.3) {
+      u_xyz <<
+      (-1.953624230872906e5 * My * Mz - 1.0622537302872798e6 * Mx * Thrust + 1.881710033408788e5 * Mz * Thrust) /
+      (3.1578475658491784e4 * Power(Mz, 2) - 2.898214227537045e6 * Power(Thrust, 2)),
+              (-1.1088137526575953e5 * Mx * Mz + 1.964187937464974e4 * Power(Mz, 2) -
+               1.8715899057442548e6 * My * Thrust) /
+              (3.1578475658491784e4 * Power(Mz, 2) - 2.898214227537045e6 * Power(Thrust, 2)), 0.6958875712665018 * Mz;
+   }
+   else{
+      float Thrust = 0.3;
+      u_xyz <<
+      (-1.953624230872906e5 * My * Mz - 1.0622537302872798e6 * Mx * Thrust + 1.881710033408788e5 * Mz * Thrust) /
+      (3.1578475658491784e4 * Power(Mz, 2) - 2.898214227537045e6 * Power(Thrust, 2)),
+              (-1.1088137526575953e5 * Mx * Mz + 1.964187937464974e4 * Power(Mz, 2) -
+               1.8715899057442548e6 * My * Thrust) /
+              (3.1578475658491784e4 * Power(Mz, 2) - 2.898214227537045e6 * Power(Thrust, 2)), 0.6958875712665018 * Mz;
+   }
 
    float al = 0,ar =0,ul =0 ,ur =0;
    //u 2 actuator
    //mix
    al = (u_xyz.x() - u_xyz.y());
    ar = (-u_xyz.x() - u_xyz.y());
-   if (Thrust < 0.1)
-   {
-      if (Thrust > 0) {
-         ul = sqrt(Thrust);
-         ur = sqrt(Thrust);
-      }
-      al = 0;
-      ar = 0;
-   }
-   else {
 
 
-      al = actuator_rerange(al, 50 * (1 - aileron_angle_ratio),50 * (1 + aileron_angle_ratio));
-      al = actuator_rerange(al, 50 * (1 - aileron_angle_ratio),50 * (1 + aileron_angle_ratio));
+   al = actuator_rerange(al, 50 * (1 - aileron_angle_ratio),50 * (1 + aileron_angle_ratio));
+   ar = actuator_rerange(ar, 50 * (1 - aileron_angle_ratio),50 * (1 + aileron_angle_ratio));
+   //ul from 0 to 1
+   if (Thrust + u_xyz.z() * k_thrust_z_ratio > 0 && Thrust > 0.01)
+      ul = sqrt(Thrust + u_xyz.z() * k_thrust_z_ratio);
+   else
+      ul = 0;
 
-      //ul from 0 to 1
-      if (Thrust + u_xyz.z() * k_thrust_z_ratio > 0)
-         ul = sqrt(Thrust + u_xyz.z() * k_thrust_z_ratio);
+   //ur from 0 to 1
+   if (Thrust - u_xyz.z() * k_thrust_z_ratio > 0 && Thrust > 0.01)
+      ur = sqrt(Thrust - u_xyz.z() * k_thrust_z_ratio);
+   else
+      ur = 0;
 
-      //ul from 0 to 1
-      if (Thrust - u_xyz.z() * k_thrust_z_ratio > 0)
-         ur = sqrt(Thrust - u_xyz.z() * k_thrust_z_ratio);
-
-      ul = actuator_rerange(ul,0,100,0,1);
-      ur = actuator_rerange(ur,0,100,0,1);
-   }
+   ul = actuator_rerange(ul,0,100,0,1);
+   ur = actuator_rerange(ur,0,100,0,1);
 
    after_mixer.axes[0] = al;
    after_mixer.axes[1] = ar;
@@ -109,7 +121,6 @@ void servo_mixer::mixer()
       after_mixer.axes[3] = ur;
       if (this->mode == controller_mode::debug_possess_control)
       {
-//         ROS_INFO("try to possess control");
          after_mixer.axes[0] = actuator_rerange(rc_posses_data.wx);
          after_mixer.axes[1] = actuator_rerange(rc_posses_data.wy);
          after_mixer.axes[2] = actuator_rerange(rc_posses_data.throttle);
@@ -118,8 +129,6 @@ void servo_mixer::mixer()
    }
    else
    {
-      after_mixer.axes[0] = 0;
-      after_mixer.axes[1] = 0;
       after_mixer.axes[2] = 0;
       after_mixer.axes[3] = 0;
    }
@@ -130,7 +139,6 @@ void servo_mixer::mixer()
    {
       if (isnan(after_mixer.axes[i])) {
          after_mixer.axes[i] = 0;
-//         ROS_WARN("Axis:%d Nan",i);
       }
       else
          after_mixer.axes[i] = trim(after_mixer.axes[i]);

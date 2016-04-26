@@ -35,13 +35,17 @@ void simulator::init(ros::NodeHandle & nh)
     ROS_INFO("d mass air %5f",d_mass_air);
 
     this->rigidBody.mass = mass;
+
+    //w x y z 0.707 0 -0.707
+    Eigen::Quaterniond base_quat ( Eigen::AngleAxisd(M_PI /2, Eigen::Vector3d::UnitY()));
+//    rigidBody.external_set_attitude(base_quat);
 }
 
 
 void simulator::UpdateActuator(sensor_msgs::Joy joy) {
     for (int i = 0;i<joy.axes.size();i++)
     {
-        joy.axes[i] = joy.axes[i] /100;
+        joy.axes[i] = (joy.axes[i] /100 - 0.5)*2;
     }
     this->actuators = joy;
 }
@@ -85,6 +89,8 @@ void simulator::UpdateTimer(const ros::TimerEvent & timerEvent) {
 
     Vector3d force = CalcForce().cast<double>();
     Vector3d torque = CalcTorque().cast<double>();
+//    torque.z() = 0;
+//    torque.y() = 0;
     rigidBody.set_force(force.cast<double>());
     rigidBody.set_torque(torque.cast<double>());
     rigidBody.sim_step(deltatime);
@@ -135,8 +141,8 @@ Eigen::Vector3f simulator::air_dynamic_force() {
         airdynamic_force = airdynamic_force + lift3f;
 
         if (count % 100 == 1) {
-            ROS_INFO("local vel %f %f %f drag %5f lift %5f %d",local_velocity.x(),local_velocity.y(),local_velocity.z(),drag,lift,count);
-            ROS_INFO("Air Force %f %f %f",airdynamic_force.x(),airdynamic_force.y(),airdynamic_force.z());
+//            ROS_INFO("local vel %f %f %f drag %5f lift %5f %d",local_velocity.x(),local_velocity.y(),local_velocity.z(),drag,lift,count);
+//            ROS_INFO("Air Force %f %f %f",airdynamic_force.x(),airdynamic_force.y(),airdynamic_force.z());
         }
     }
 //    return Vector3f(0,0,0);

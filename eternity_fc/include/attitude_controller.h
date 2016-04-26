@@ -20,6 +20,14 @@
  */
 using namespace Eigen;
 
+inline Vector3f quat2eulers(Quaternionf quat)
+{
+    Vector3f rpy;
+    rpy.x() = atan2f(2 * (quat.w() * quat.x() + quat.y() * quat.z()),1 - 2*(quat.x() * quat.x() + quat.y() * quat.y()));
+    rpy.y() = asinf(2 * (quat.w()*quat.y() - quat.z() * quat.x()));
+    rpy.z() = atan2f(2* (quat.w () * quat.z() + quat.x() *quat.y()),1-2 * (quat.y() *quat.y() +quat.z() * quat.z() ) );
+    return rpy;
+}
 class attitude_controller
 {
 public:
@@ -44,8 +52,12 @@ public:
     static void angle_axis_from_quat(Quaternionf q0, Quaternionf q_sp, Vector3f & axis);
 
     void angular_velocity_controller(float DeltaTime,Vector3f angular_vel_sp);
-    void so3_attitude_controller(float DeltaTime, Quaternionf attitude_sp);
+    void so3_attitude_controller(float DeltaTime, Quaternionf attitude_sp,Vector3f external_angular_speed = Vector3f(0,0,0));
     void head_velocity_control(float DeltaTime,float vertical_velocity_sp);
+
+    void run_hover_attitude_controller(float DeltaTime,eternity_fc::hover_attitude_sp hover_sp);
+    void run_attitude_controller(float DeltaTime,eternity_fc::attitude_sp attitude_sp,Vector3f external_angular_speed = Vector3f(0,0,0));
+
 
     //states
     Vector3f angular_velocity = Vector3f(0,0,0);
@@ -74,6 +86,11 @@ public:
     float Rudder = 0;
     float Thrust = 0;
 
+    struct {
+       float max_attitude_angle = 45;
+       float max_yaw_speed = 180;
+    } params;
+
     //Intt values
     float intt_head_velocity_err = 0;
 
@@ -83,12 +100,14 @@ public:
     //setpoints
     eternity_fc::angular_velocity_sp angular_velocity_sp;
     eternity_fc::attitude_sp attitude_sp;
+    eternity_fc::hover_attitude_sp hover_attitude_sp;
 
     bool UsingUnreal;
 
 
     //sub
     ros::Subscriber odometry_sub,angular_velocity_sp_sub,attitude_sp_sub,mode_sub,accel_sub;
+    ros::Subscriber hover_attitude_sub;
     ros::Publisher mixer_pub;
 
     void odometry_callback(const nav_msgs::Odometry & odometry);
@@ -96,6 +115,7 @@ public:
     void attitude_sp_callback(const eternity_fc::attitude_sp & sp);
     void mode_sub_callback(const std_msgs::Int32 & mode);
     void accel_sub_callback(const dji_sdk::Acceleration & acc);
+    void hover_attitude_sub_callback(const eternity_fc::hover_attitude_sp & sp);
 };
 
 

@@ -14,27 +14,10 @@
 #include <std_msgs/UInt8.h>
 #include <sensor_msgs/Joy.h>
 #include <dji_sdk/SDKPermissionControl.h>
+#include <state_machine_defines.h>
+#include <eternity_fc/hover_attitude_sp.h>
 
 using namespace dji_sdk;
-
-enum controller_mode {
-    nothing = 0,
-    disarm = 1,
-    attitude = 2,
-    manual = 3,
-    debug_possess_control = 4,
-    mode_end
-};
-
-enum mode_action {
-    donothing = 0,
-    try_arm = 1,
-    try_disarm = 2,
-    toManual = 3,
-    toAttitude = 4,
-    toPossess = 5,
-    action_end
-};
 
 //receive joy or rc
 class state_machine
@@ -62,10 +45,18 @@ public:
     ros::Publisher attitude_sp_pub;
     ros::Publisher mode_pub;
 
-    controller_mode mode;
+    struct{
+        ros::Publisher hover_att_sp;
+    } publishers;
 
-    float max_attitude_angle;
-    float max_yaw_speed;
+    controller_mode mode;
+    engine_modes engine_mode;
+
+    struct {
+        float max_attitude_angle = 45;
+        float max_yaw_speed = 180;
+    } params;
+
     float max_vertical_speed;
     float max_angular_velocity;
     bool rc_trying_arm = false;
@@ -95,10 +86,9 @@ public:
 
     void checkArm();
     void checkRC();
-    //false:rc
-    //true joy
-    bool using_rc_or_joy;
     bool in_simulator;
+
+    bool simulator_arming = false;
 
     int flight_status = 0;
 

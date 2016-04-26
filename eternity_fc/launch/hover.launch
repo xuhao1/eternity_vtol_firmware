@@ -2,7 +2,6 @@
     <param name="mass" value="1.0"/>
     <include file="$(find dji_sdk)/launch/sdk_usb.launch" />
     <node pkg="eternity_fc" type="state_machine_node" name="state_machine" output="screen">
-        <param name="using_rc_or_joy" value="0" type="bool"/>
         <param name="max_angular_velocity" value="4.0"/>
         <param name="max_yaw_speed" value="270"/>
     </node>

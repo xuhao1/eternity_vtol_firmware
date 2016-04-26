@@ -44,6 +44,7 @@ public:
     void set_attitude(Eigen::Quaterniond _attitude);
     Eigen::Vector3d get_position();
     void external_set_position(Eigen::Vector3d setting_vec);
+    void external_set_attitude(Eigen::Quaterniond _attitude);
     Eigen::Vector3d get_velocity();
     double get_mass();
     Eigen::Vector3d get_angularVelocity() const;

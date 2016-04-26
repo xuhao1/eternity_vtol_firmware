@@ -38,7 +38,7 @@ void state_machine::checkRC() {
 }
 void state_machine::checkArm() {
     mode_action  action = mode_action::try_disarm ;
-    if (flight_status == 3) {
+    if (flight_status == 3 || simulator_arming) {
         action = mode_action::try_arm;
     }
     update_state_machine(action);
@@ -46,25 +46,26 @@ void state_machine::checkArm() {
 }
 void state_machine::update_set_points() {
       switch (mode) {
-        case controller_mode::attitude : {
-//            Eigen::Quaternionf base_quat ( Eigen::AngleAxisf(M_PI /2, Eigen::Vector3f::UnitY()));
-            Eigen::Quaternionf base_quat ( Eigen::AngleAxisf(5*M_PI / 180.0, Eigen::Vector3f::UnitY()));
-            float roll_sp = rc_value.roll * max_attitude_angle / 10000.0f;
-            float pitch_sp = rc_value.pitch * max_attitude_angle /10000.0f;
-            static float yaw_sp = 0;
-            yaw_sp += rc_value.yaw * max_yaw_speed * deltat /10000.0f;
-            Eigen::AngleAxisf rollAngle(roll_sp * M_PI / 180, Eigen::Vector3f::UnitX());
-            Eigen::AngleAxisf pitchAngle(pitch_sp * M_PI / 180, Eigen::Vector3f::UnitY());
-            Eigen::AngleAxisf yawAngle(yaw_sp * M_PI / 180, Eigen::Vector3f::UnitZ());
-            Eigen::Quaternionf quat_sp =yawAngle * pitchAngle * rollAngle * base_quat;
-            float vertical_speed = rc_value.throttle * max_vertical_speed / 10000.0f;
-            eternity_fc::attitude_sp att_sp;
-            att_sp.head_speed = vertical_speed;
-            att_sp.w = quat_sp.w();
-            att_sp.x = quat_sp.x();
-            att_sp.y = quat_sp.y();
-            att_sp.z = quat_sp.z();
-            attitude_sp_pub.publish(att_sp);
+        case controller_mode::hover_attitude : {
+            eternity_fc::hover_attitude_sp hover_attitude_sp;
+            hover_attitude_sp.roll = rc_value.roll * params.max_attitude_angle /10000;
+            hover_attitude_sp.pitch = rc_value.pitch * params.max_attitude_angle / 10000;
+            hover_attitude_sp.yaw = rc_value.yaw * params.max_yaw_speed / 10000;
+            switch (engine_mode)
+            {
+
+                case engine_modes::engine_control_speed:
+                hover_attitude_sp.vertical_speed = rc_value.throttle * max_vertical_speed / 10000;
+                    break;
+                case engine_modes::engine_straight_forward:
+                case engine_modes::engine_lock:
+                    hover_attitude_sp.vertical_speed = rc_value.throttle / 10000;
+                    break;
+            }
+
+            hover_attitude_sp.engine_mode = engine_mode;
+            hover_attitude_sp.mode = hover_modes ::hover_angular_yaw;
+            publishers.hover_att_sp.publish(hover_attitude_sp);
             break;
         };
 
@@ -75,6 +76,7 @@ void state_machine::update_set_points() {
             angular_velocity_sp.wy = rc_value.pitch * max_angular_velocity / 10000.0f;
             angular_velocity_sp.wz = rc_value.yaw * max_angular_velocity /10000.0f;
             angular_velocity_sp.throttle = rc_value.throttle / 10000.0f;
+            angular_velocity_sp.engine_mode = engine_mode;
             angular_velocity_sp_pub.publish(angular_velocity_sp);
             break;
         };
@@ -95,17 +97,22 @@ void state_machine::update_set_points() {
 }
 
 void state_machine::slow_update(const ros::TimerEvent &event) {
+    static int count = 0;
+    count ++ ;
     checkRC();
     //change state
     mode_action  action = mode_action::donothing;
     if (rc_value.gear <-7000)
     {
-         action = mode_action::toManual;
+        action = mode_action::toHoverAttitude;
+        engine_mode = engine_modes ::engine_lock;
     }
     if(rc_value.gear < 1000 && rc_value.gear > -1000)
     {
-        action = mode_action::toAttitude;
+        action = mode_action::toHoverAttitude;
+        engine_mode = engine_modes ::engine_straight_forward;
     }
+
     if(rc_value.gear > 7000) {
         action = mode_action::toPossess;
     }
@@ -123,6 +130,14 @@ void state_machine::slow_update(const ros::TimerEvent &event) {
         control_client.call(req);
     }
 
+
+
+    if (count % 10 == 0) {
+        ROS_INFO("Mode : %d", static_cast<int>(mode));
+        ROS_INFO("Engine Mode: %d", engine_mode);
+        ROS_INFO("RC Value : %f %f %f %f %f", rc_value.roll, rc_value.pitch, rc_value.throttle, rc_value.yaw,
+                 rc_value.gear);
+    }
 }
 
 void state_machine::init(ros::NodeHandle &nh) {
@@ -136,13 +151,15 @@ void state_machine::init(ros::NodeHandle &nh) {
     attitude_sp_pub = nh.advertise<eternity_fc::attitude_sp>("attitude_sp",10);
     mode_pub = nh.advertise<std_msgs::Int32>("fc_mode",10);
 
+    publishers.hover_att_sp = nh.advertise<eternity_fc::hover_attitude_sp>("/eternity_setpoints/hover_attitude_sp",10);
 
-    nh.param("max_attitude_angle",max_attitude_angle,45.0f);
-    nh.param("max_yaw_speed",max_yaw_speed,180.0f);
+
     nh.param("max_vertical_speed",max_vertical_speed,5.0f);
     nh.param("max_angular_velocity",max_angular_velocity,2.0f);
-    nh.param("using_rc_or_joy",using_rc_or_joy,false);
     nh.getParam("in_simulator",in_simulator);
+
+    nh.param("max_attitude_angle",params.max_attitude_angle,45.0f);
+    nh.param("max_yaw_speed",params.max_yaw_speed,180.0f);
 
     slow_timer = nh.createTimer(ros::Rate(10),&state_machine::slow_update,this);
     fast_timer = nh.createTimer(ros::Rate(100),&state_machine::fast_update,this);
@@ -178,20 +195,19 @@ void state_machine::init_state_machine() {
         }
     }
 
-    state_transfer[controller_mode::disarm][mode_action::try_arm] = controller_mode::attitude;
-    state_transfer[controller_mode::attitude][mode_action::try_disarm] = controller_mode::disarm;
+    state_transfer[controller_mode::disarm][mode_action::try_arm] = controller_mode::hover_attitude;
+    state_transfer[controller_mode::hover_attitude][mode_action::try_disarm] = controller_mode::disarm;
     state_transfer[controller_mode::manual][mode_action::try_disarm] = controller_mode::disarm;
     state_transfer[controller_mode::debug_possess_control][mode_action::try_disarm] = controller_mode::disarm;
 
-    state_transfer[controller_mode::attitude][mode_action::toManual] = controller_mode::manual;
+    state_transfer[controller_mode::hover_attitude][mode_action::toManual] = controller_mode::manual;
     state_transfer[controller_mode::debug_possess_control][mode_action::toManual] = controller_mode::manual;
-    state_transfer[controller_mode::manual][mode_action::toAttitude] = controller_mode::attitude;
-    state_transfer[controller_mode::debug_possess_control][mode_action::toAttitude] = controller_mode::attitude;
+    state_transfer[controller_mode::manual][mode_action::toHoverAttitude] = controller_mode::hover_attitude;
+    state_transfer[controller_mode::debug_possess_control][mode_action::toHoverAttitude] = controller_mode::hover_attitude;
 
-    state_transfer[controller_mode::attitude][mode_action::toPossess] = controller_mode::debug_possess_control;
+    state_transfer[controller_mode::hover_attitude][mode_action::toPossess] = controller_mode::debug_possess_control;
     state_transfer[controller_mode::manual][mode_action::toPossess] = controller_mode::debug_possess_control;
 
-    mode = controller_mode ::attitude;
 }
 
 void state_machine::update_state_machine(mode_action act) {
@@ -224,10 +240,8 @@ void state_machine::update_state_machine(mode_action act) {
 
 void state_machine::update_rc_channels(RCChannels rc_value) {
     //TODO:Use real delta time
-    if (!using_rc_or_joy) {
-        this->rc_value = rc_value;
-        RCUpdated = true;
-    }
+    this->rc_value = rc_value;
+    RCUpdated = true;
 }
 void state_machine::update_control_permission(std_msgs::UInt8 data) {
 //    ROS_INFO("control :%d",data.data);
@@ -235,19 +249,17 @@ void state_machine::update_control_permission(std_msgs::UInt8 data) {
 }
 
 void state_machine::update_joy(sensor_msgs::Joy joy_data) {
-    if (using_rc_or_joy)
-    {
-        if (joy_data.axes.size() < 4)
-            return;
-        RCUpdated = true;
-        this->rc_value.roll = joy_data.axes[0] * 10000;
-        this->rc_value.pitch = joy_data.axes[1] * 10000;
-        this->rc_value.throttle = joy_data.axes[2] * 10000;
-        this->rc_value.yaw = joy_data.axes[3] * 10000;
-        if (joy_data.buttons.size() < 1)
-            return;
-        this->rc_value.mode = joy_data.buttons[0] * 10000;
-    }
+    if (joy_data.axes.size() < 4)
+        return;
+    RCUpdated = true;
+    this->rc_value.roll = joy_data.axes[0] * 10000;
+    this->rc_value.pitch = joy_data.axes[1] * 10000;
+    this->rc_value.throttle = joy_data.axes[2] * 10000;
+    this->rc_value.yaw = joy_data.axes[3] * 10000;
+    if (joy_data.buttons.size() < 2)
+        return;
+    this->rc_value.gear = joy_data.buttons[0] * 10000;
+    this->simulator_arming = joy_data.buttons[1] == 0;
 }
 
 int main(int argc,char ** argv)

@@ -41,12 +41,10 @@ void attitude_controller::fast_update(const ros::TimerEvent &timerEvent) {
 
 	static int count = 0;
 	if (count++ % 10 == 0) {
-		AngleAxisf angle_axis(attitude);
-		Vector3f axis = angle_axis.axis();
-		float angle = angle_axis.angle();
-//		ROS_INFO("angle %f axis %f %f %f", angle * 180 / M_PI, axis.x(), axis.y(), axis.z());
-		Vector3f rpy = attitude.toRotationMatrix().eulerAngles(0,1,2) * 180 /M_PI;
-//		ROS_INFO("r %f p %f y %f",rpy.x(),rpy.y(),rpy.z());
+//		AngleAxisf angle_axis(attitude);
+//		Vector3f axis = angle_axis.axis();
+//		float angle = angle_axis.angle();
+//		Vector3f rpy = attitude.toRotationMatrix().eulerAngles(0,1,2) * 180 /M_PI;
 	}
 }
 void attitude_controller::run_controller(const ros::TimerEvent &timerEvent) {
@@ -63,14 +61,12 @@ void attitude_controller::run_controller(const ros::TimerEvent &timerEvent) {
 		}
 		case controller_mode::attitude:
 		{
-			Quaternionf att_sp;
-			att_sp.w() = attitude_sp.w;
-			att_sp.x() = attitude_sp.x;
-			att_sp.y() = attitude_sp.y;
-			att_sp.z() = attitude_sp.z;
-			so3_attitude_controller(deltatime,att_sp);
-//			head_velocity_control(deltatime,attitude_sp.head_speed);
-			Thrust = (angular_velocity_sp.throttle + 1 )/2;
+			run_attitude_controller(deltatime,attitude_sp);
+			break;
+		}
+		case controller_mode::hover_attitude:
+		{
+			run_hover_attitude_controller(deltatime,hover_attitude_sp);
 			break;
 		}
 		default:
@@ -79,7 +75,6 @@ void attitude_controller::run_controller(const ros::TimerEvent &timerEvent) {
 			Thrust = 0;
 			Rudder = 0;
 	}
-//	ROS_INFO("here")
 	sensor_msgs::Joy joy;
 	std::vector<float> axes(16);
 	joy.axes = axes;
@@ -97,12 +92,13 @@ void attitude_controller::init_sub(ros::NodeHandle &nh) {
 	angular_velocity_sp_sub = nh.subscribe("/state_machine/angular_velocity_sp",10,&attitude_controller::angular_velocity_callback,this);
 	attitude_sp_sub = nh.subscribe("/state_machine/attitude_sp",10,&attitude_controller::attitude_sp_callback,this);
 	mode_sub = nh.subscribe("/state_machine/fc_mode",10,&attitude_controller::mode_sub_callback,this);
+
+	hover_attitude_sub = nh.subscribe("/eternity_setpoints/hover_attitude_sp",10,&attitude_controller::hover_attitude_sub_callback,this);
 }
 void attitude_controller::attitude_sp_callback(const eternity_fc::attitude_sp &sp) {
 	this->attitude_sp = sp;
 }
 void attitude_controller::angular_velocity_callback(const eternity_fc::angular_velocity_sp &sp) {
-
 	this->angular_velocity_sp = sp;
 }
 
@@ -216,18 +212,11 @@ void attitude_controller::angular_velocity_controller(float DeltaTime, Vector3f 
 	//filter
 	Vector3f err_d = (err - err_last)/deltatime;
 	err_last = err;
-//	err = (err + angular_vel_err_last) / 2;
-//	angular_vel_err_last = tmp;
-//	ROS_INFO("ERR: %f %f %f",err.x(),err.y(),err.z());
 
 	Aileron = err.x() * angular_velocity_p.x() + err_d.x() * angular_velocity_d.x();
 	Elevator = err.y() * angular_velocity_p.y() + err_d.y() * angular_velocity_d.y();
 	Rudder = err.z() * angular_velocity_p.z() + err_d.z() * angular_velocity_d.z();
 
-	static int count = 0;
-	if (count++ % 1 == 0) {
-//		ROS_INFO("%f %f %f",angular_vel_sp.x(),angular_vel_sp.y(),angular_vel_sp.z());
-	}
 }
 
 Vector3f product(Vector3f a, Vector3f b)
@@ -235,13 +224,13 @@ Vector3f product(Vector3f a, Vector3f b)
 	return Vector3f(a.x()*b.x(),a.y()*b.y(),a.z()*b.z());
 }
 
-void attitude_controller::so3_attitude_controller(float DeltaTime, Quaternionf attitude_sp)
+void attitude_controller::so3_attitude_controller(float DeltaTime, Quaternionf attitude_sp,Vector3f external_angular_speed)
 {
 	Vector3f axis;
 	angle_axis_from_quat(attitude, attitude_sp, axis);
 
 	//TODO:NEED I?
-	Vector3f angular_vel_sp = product(axis, attitude_p) -  product(attitude_d,angular_velocity);
+	Vector3f angular_vel_sp = product(axis, attitude_p) -  product(attitude_d,angular_velocity) + external_angular_speed;
 	angular_velocity_controller(DeltaTime, angular_vel_sp);
 
 	static int count = 0;
@@ -291,6 +280,63 @@ void attitude_controller::head_velocity_control(float DeltaTime, float head_velo
 	//Thrust from 0->1
 }
 
+void attitude_controller::hover_attitude_sub_callback(const eternity_fc::hover_attitude_sp &sp) {
+	this->hover_attitude_sp = sp;
+
+}
+
+void attitude_controller::run_hover_attitude_controller(float DeltaTime, eternity_fc::hover_attitude_sp hover_sp) {
+	//Make up att
+	static int count = 0;
+	count ++;
+	Eigen::Quaternionf base_quat ( Eigen::AngleAxisf(M_PI /2, Eigen::Vector3f::UnitY()));
+	float roll_sp = hover_sp.roll;
+	float pitch_sp = hover_sp.pitch;
+	Vector3f rpy = quat2eulers(attitude * base_quat.inverse()) * 180 / M_PI;
+	float yaw_sp = rpy.z() ;//+ hover_sp.yaw * deltatime;
+//	if (count % 10 == 0)
+//	ROS_INFO("rpy %f %f %f",rpy.x(),rpy.y(),rpy.z());
+	Eigen::AngleAxisf rollAngle(roll_sp * M_PI / 180, Eigen::Vector3f::UnitX());
+	Eigen::AngleAxisf pitchAngle(pitch_sp * M_PI / 180, Eigen::Vector3f::UnitY());
+	Eigen::AngleAxisf yawAngle(yaw_sp * M_PI / 180, Eigen::Vector3f::UnitZ());
+	Eigen::Quaternionf quat_sp = yawAngle * pitchAngle * rollAngle * base_quat;
+
+	//set up att sp
+	eternity_fc::attitude_sp att_sp;
+	att_sp.head_speed = hover_sp.vertical_speed;
+	att_sp.w = quat_sp.w();
+	att_sp.x = quat_sp.x();
+	att_sp.y = quat_sp.y();
+	att_sp.z = quat_sp.z();
+	att_sp.engine_mode = hover_sp.engine_mode;
+	//run controll as att
+
+	Vector3f yaw_angular_speed(0,0,hover_sp.yaw * M_PI /180);
+	yaw_angular_speed = attitude.inverse()._transformVector(yaw_angular_speed);
+//	yaw_angular_speed = attitude._transformVector(yaw_angular_speed);
+	run_attitude_controller(deltatime,att_sp,yaw_angular_speed);
+}
+
+void attitude_controller::run_attitude_controller(float DeltaTime, eternity_fc::attitude_sp attitude_sp,Vector3f external_angular_speed) {
+	Quaternionf att_sp;
+	att_sp.w() = attitude_sp.w;
+	att_sp.x() = attitude_sp.x;
+	att_sp.y() = attitude_sp.y;
+	att_sp.z() = attitude_sp.z;
+	so3_attitude_controller(deltatime,att_sp,external_angular_speed);
+	switch (attitude_sp.engine_mode)
+	{
+		case engine_modes::engine_control_speed:
+			head_velocity_control(deltatime,attitude_sp.head_speed);
+			break;
+		case engine_modes ::engine_straight_forward:
+			Thrust = (attitude_sp.head_speed + 1 )/2;
+			break;
+		case engine_modes::engine_lock:
+			Thrust = 0;
+			break;
+	}
+}
 
 int main(int argc,char ** argv)
 {

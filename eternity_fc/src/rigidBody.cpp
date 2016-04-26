@@ -141,7 +141,12 @@ void RigidBody::set_attitude(Eigen::Quaterniond _attitude)
     attitude.y() = _attitude.y();
     attitude.z() = _attitude.z();
 }
-
+void RigidBody::external_set_attitude(Eigen::Quaterniond _attitude) {
+    internalState[6] = _attitude.x();
+    internalState[7] = _attitude.y();
+    internalState[8] = _attitude.z();
+    internalState[9] = _attitude.w();
+}
 Eigen::Vector3d RigidBody::get_position()
 {
     return Eigen::Vector3d(position(0), position(1), position(2));
