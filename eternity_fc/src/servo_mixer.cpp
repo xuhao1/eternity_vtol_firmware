@@ -14,11 +14,18 @@ inline float Sqrt(float a)
    return sqrt(a);
 }
 
+void servo_mixer::update_parameters(ros::NodeHandle &nh) {
+    nh.param("aileron_angle_ratio",aileron_angle_ratio,0.5f);
+    nh.param("k_thrust_z_ratio",k_thrust_z_ratio,0.15f);
+    nh.param("torque_middle_point_x",torque_middle_point.x(),0.0f);
+    nh.param("torque_middle_point_y",torque_middle_point.y(),0.0f);
+    nh.param("torque_middle_point_z",torque_middle_point.z(),0.0f);
+//    ROS_INFO("torque_middle_point_x %5f",torque_middle_point.x());
+}
+
 void servo_mixer::init(ros::NodeHandle &nh) {
    actucator_control_pub = nh.advertise<sensor_msgs::Joy>("/dji_sdk/possess_control",10);
 
-   nh.param("aileron_angle_ratio",aileron_angle_ratio,0.5f);
-   nh.param("k_thrust_z_ratio",k_thrust_z_ratio,0.15f);
 
    before_mixer.axes = std::vector<float>(8);
    after_mixer.axes = std::vector<float>(8);
@@ -33,7 +40,9 @@ void servo_mixer::init(ros::NodeHandle &nh) {
    rc_possess_sub = nh.subscribe("/state_machine/angular_velocity_sp",10,&servo_mixer::update_rc_values,this);
 
    fast_timer = nh.createTimer(ros::Rate(50),&servo_mixer::fast_update,this);
-//   slow_timer = nh.createTimer(ros::Rate(10),&servo_mixer::slow_update,this);
+   slow_timer = nh.createTimer(ros::Rate(10),&servo_mixer::slow_update,this);
+
+   update_parameters(nh);
 }
 
 void servo_mixer::mode_sub_callback(const std_msgs::Int32 &mode) {
@@ -63,9 +72,9 @@ void servo_mixer::mixer()
    static int count = 0;
    count ++;
    Eigen::Vector3f u_xyz;
-   float Mx = before_mixer.axes[0];
-   float My = before_mixer.axes[1];
-   float Mz = before_mixer.axes[3];
+   float Mx = before_mixer.axes[0] + torque_middle_point.x();
+   float My = before_mixer.axes[1] + torque_middle_point.y();
+   float Mz = before_mixer.axes[3] + torque_middle_point.z();
    float Thrust = before_mixer.axes[2];
    if (Thrust < 0)
    {
@@ -97,7 +106,7 @@ void servo_mixer::mixer()
    ar = (-u_xyz.x() - u_xyz.y());
 
 
-   al = actuator_rerange(al, 50 * (1 - aileron_angle_ratio),50 * (1 + aileron_angle_ratio));
+   al = actuator_rerange(al, 50 * (1 + aileron_angle_ratio),50 * (1 - aileron_angle_ratio));
    ar = actuator_rerange(ar, 50 * (1 - aileron_angle_ratio),50 * (1 + aileron_angle_ratio));
    //ul from 0 to 1
    if (Thrust + u_xyz.z() * k_thrust_z_ratio > 0 && Thrust > 0.01)
@@ -156,7 +165,7 @@ void servo_mixer::fast_update(const ros::TimerEvent &event) {
 }
 
 void servo_mixer::slow_update(const ros::TimerEvent &event) {
-
+   update_parameters(nh);
 }
 
 void servo_mixer::update_before_mixer(sensor_msgs::Joy joy_data) {

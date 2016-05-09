@@ -1,20 +1,9 @@
 <launch>
-    <param name="mass" value="1.0"/>
+    <rosparam command="load" file="$(find eternity_fc)/params/hover.yaml" />
     <include file="$(find dji_sdk)/launch/sdk_usb.launch" />
     <node pkg="eternity_fc" type="state_machine_node" name="state_machine" output="screen">
-        <param name="max_angular_velocity" value="4.0"/>
-        <param name="max_yaw_speed" value="270"/>
     </node>
     <node pkg="eternity_fc" type="attitude_controller_node" name="attitude_controller" output="screen">
-        <param name="angular_velocity_p_x" value="0.2"/>
-        <param name="angular_velocity_p_y" value="0.1"/>
-        <param name="angular_velocity_p_z" value="0.08"/>
-        <param name="attitude_p_x" value="3"/>
-        <param name="attitude_p_y" value="3"/>
-        <param name="attitude_p_z" value="3"/>
-        <param name="head_velocity_p" value="5"/>
-        <param name="head_velocity_i" value="5"/>
-        <param name="in_simulator" value="false"/>
     </node>
     <node pkg="eternity_fc" type="servo_mixer_node" name="servo_mixer" output="screen">
     </node>

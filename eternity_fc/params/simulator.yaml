@@ -1,0 +1,30 @@
+attitude_controller: {
+  angular_velocity_d_x: 0.0,
+  angular_velocity_d_y: 0.0,
+  angular_velocity_d_z: 0.0,
+  angular_velocity_p_x: 0.1,
+  angular_velocity_p_y: 0.1,
+  angular_velocity_p_z: 0.05,
+  attitude_p_x: '',
+  attitude_p_y: 3,
+  attitude_p_z: 3,
+  head_velocity_i: 5,
+  head_velocity_p: 5,
+  in_simulator: true
+}
+mass: 1.0
+servo_mixer: {
+  torque_middle_point_x: 0.0,
+  torque_middle_point_y: 0.0,
+  torque_middle_point_z: 0.0
+}
+simulator: {
+  airdynamic_damping_rate_x: 0.1,
+  airdynamic_damping_rate_y: 0.05,
+  airdynamic_damping_rate_z: 0.01,
+  d_mass_air: 0.1
+}
+state_machine: {
+  max_angular_velocity: 4.0,
+  max_yaw_speed: 180
+}

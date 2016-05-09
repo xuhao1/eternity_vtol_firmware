@@ -42,6 +42,7 @@ public:
     Eigen::Vector3f local_velocity = Eigen::Vector3f(0,0,0);
     Eigen::Quaternionf attitude = Eigen::Quaternionf(1,0,0,0);
     Eigen::Vector3f angular_velocity;
+    Eigen::Vector3f air_relative_velocity = Eigen::Vector3f(0,0,0);
 
     void UpdateFcMode(std_msgs::Int32 mode);
     void UpdateTimer(const ros::TimerEvent & timerEvent);
@@ -62,9 +63,9 @@ public:
     float A_ct = - 0.15;
     float B_ct = 0.09 ;
 
-    float airdynamic_damping_rate_x = 0.5;
-    float airdynamic_damping_rate_y = 0.2;
-    float airdynamic_damping_rate_z = 0.1;
+    float airdynamic_damping_rate_x;//= 0.5;
+    float airdynamic_damping_rate_y;//= 0.2;
+    float airdynamic_damping_rate_z;// = 0.1;
     Eigen::Vector3f wind_speed = Eigen::Vector3f(-0,0,0);
 
     float mass;

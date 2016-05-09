@@ -13,6 +13,9 @@ void simulator::init(ros::NodeHandle & nh)
     nh.param("disable_torque",disable_torque,0);
     nh.getParam("mass",mass);
     nh.param("simulator/d_mass_air",d_mass_air,-0.1f);
+    nh.param("simulator/airdynamic_damping_rate_x",airdynamic_damping_rate_x,0.1f);
+    nh.param("simulator/airdynamic_damping_rate_y",airdynamic_damping_rate_y,0.05f);
+    nh.param("simulator/airdynamic_damping_rate_z",airdynamic_damping_rate_z,0.01f);
 
     actuator_sub = nh.subscribe("/dji_sdk/possess_control",10,&simulator::UpdateActuator,this);
 
@@ -38,7 +41,6 @@ void simulator::init(ros::NodeHandle & nh)
 
     //w x y z 0.707 0 -0.707
     Eigen::Quaterniond base_quat ( Eigen::AngleAxisd(M_PI /2, Eigen::Vector3d::UnitY()));
-//    rigidBody.external_set_attitude(base_quat);
 }
 
 
@@ -120,32 +122,27 @@ Eigen::Vector3f simulator::air_dynamic_force() {
     Vector3f airdynamic_force(0,0,0);
 
     Vector3f vel = rigidBody.get_velocity().cast<float>();
-    Vector3f local_velocity = attitude.inverse()._transformVector(vel-wind_speed);
+    air_relative_velocity = attitude.inverse()._transformVector(vel-wind_speed);
 
 
-    if (local_velocity.norm()>0.1)
+    if (air_relative_velocity.norm()>0.1)
     {
-        float v = local_velocity.norm();
-        float a = - atan2f(local_velocity.z(),local_velocity.x());
+        float v = air_relative_velocity.norm();
+        float a = - atan2f(air_relative_velocity.z(),air_relative_velocity.x());
 
         //0.087 is angle for 5 deg,this is for origin fraction
         float drag = (2*sin(a)*sin(a) + 2*0.087*0.087)* 0.5 *S * v*v;
         float lift = sin(2*a) * 0.5*S *v *v;
 
         //Drag force
-        airdynamic_force = - local_velocity.normalized() * drag;
+        airdynamic_force = - air_relative_velocity.normalized() * drag;
 
         //Lift vector
-        Vector3f lift3f(-local_velocity.z(),0,local_velocity.x());
+        Vector3f lift3f(-air_relative_velocity.z(),0,air_relative_velocity.x());
         lift3f = lift3f.normalized() * lift;
         airdynamic_force = airdynamic_force + lift3f;
 
-        if (count % 100 == 1) {
-//            ROS_INFO("local vel %f %f %f drag %5f lift %5f %d",local_velocity.x(),local_velocity.y(),local_velocity.z(),drag,lift,count);
-//            ROS_INFO("Air Force %f %f %f",airdynamic_force.x(),airdynamic_force.y(),airdynamic_force.z());
-        }
     }
-//    return Vector3f(0,0,0);
     return airdynamic_force;
 
 }
@@ -168,22 +165,13 @@ float simulator::propellor_force(float n) {
     return T;
 }
 Eigen::Vector3f simulator::AirdynamicDamping() {
-//    float damping_x = - airdynamic_damping_rate_x * angular_velocity.x() * angular_velocity.x();
-//    if (angular_velocity.x() < 0)
-//        damping_x = - damping_x;
-    float damping_x = -airdynamic_damping_rate_x * angular_velocity.x();
-//    float damping_y = - airdynamic_damping_rate_y * angular_velocity.y() * angular_velocity.y();
-//    if (angular_velocity.y() < 0)
-//        damping_y = - damping_y;
-    float damping_y = -airdynamic_damping_rate_y * angular_velocity.y();
-//    float damping_z = - airdynamic_damping_rate_z * angular_velocity.z() * angular_velocity.z();
-//    if (angular_velocity.z() < 0)
-//        damping_z = - damping_z;
-    float damping_z = -airdynamic_damping_rate_z * angular_velocity.z();
+    float damping_x = - airdynamic_damping_rate_x * angular_velocity.y() * air_relative_velocity.y() * air_relative_velocity.y() * 0.5 * 1.29;
+    float damping_y = - airdynamic_damping_rate_y * angular_velocity.y() * air_relative_velocity.x() * air_relative_velocity.x() * 0.5 * 1.29;
+    float damping_z = - airdynamic_damping_rate_z * angular_velocity.z() * air_relative_velocity.x() * air_relative_velocity.x() * 0.5 * 1.29;
     return Eigen::Vector3f(damping_x,damping_y,damping_z);
 }
 Eigen::Vector3f simulator::CalcTorque() {
-    float LeftWing = actuators.axes[0];
+    float LeftWing = - actuators.axes[0];
     float RightWing = actuators.axes[1];
     float LeftMotor = (actuators.axes[2] + 1) /2.0 * 177.6;
     float RightMotor = (actuators.axes[3] + 1) /2.0 * 177.6;
@@ -196,7 +184,6 @@ Eigen::Vector3f simulator::CalcTorque() {
     M << (0.00002690160416922408 + 0.00008260145139059342*al)*Power(nl, 2) + (-0.00002690160416922408 - 0.00008260145139059342*ar)*Power(nr, 2), -0.00004688190484330978*al*Power(nl, 2) - 0.00004688190484330978*ar*Power(nr, 2), 0.00015186361805013624*Power(nl, 2) - 0.00015186361805013624*Power(nr, 2);
     Vector3f airdyamic_center(d_mass_air,0,0);
     Vector3f air_dynamic_torque = airdyamic_center.cross(air_dynamic_force()) + AirdynamicDamping();
-//    Vector3f air_dynamic_torque = AirdynamicDamping();
     return M + air_dynamic_torque;
 }
 

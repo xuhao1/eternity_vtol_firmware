@@ -22,7 +22,7 @@ public:
     sensor_msgs::Joy after_mixer;
 
     void init(ros::NodeHandle & nh);
-    void update_parameters(ros::NodeHandle & ros);
+    void update_parameters(ros::NodeHandle & nh);
     void fast_update(const ros::TimerEvent & event);
     void slow_update(const ros::TimerEvent & event);
     void mixer();
@@ -39,6 +39,8 @@ public:
 
     bool arm = false;
     eternity_fc::angular_velocity_sp rc_posses_data;
+
+    Eigen::Vector3f torque_middle_point = Eigen::Vector3f(0,0,0);
 
     ros::Timer fast_timer;
     ros::Timer slow_timer;

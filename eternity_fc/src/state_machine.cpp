@@ -104,7 +104,8 @@ void state_machine::slow_update(const ros::TimerEvent &event) {
     mode_action  action = mode_action::donothing;
     if (rc_value.gear <-7000)
     {
-        action = mode_action::toHoverAttitude;
+//        action = mode_action::toHoverAttitude;
+        action = mode_action::toManual;
         engine_mode = engine_modes ::engine_lock;
     }
     if(rc_value.gear < 1000 && rc_value.gear > -1000)
@@ -132,12 +133,10 @@ void state_machine::slow_update(const ros::TimerEvent &event) {
 
 
 
-    if (count % 10 == 0) {
-        ROS_INFO("Mode : %d", static_cast<int>(mode));
-        ROS_INFO("Engine Mode: %d", engine_mode);
-        ROS_INFO("RC Value : %f %f %f %f %f", rc_value.roll, rc_value.pitch, rc_value.throttle, rc_value.yaw,
-                 rc_value.gear);
-    }
+    ROS_INFO("Mode : %d", static_cast<int>(mode));
+    ROS_INFO("Engine Mode: %d", engine_mode);
+    ROS_INFO("RC Value : %f %f %f %f %f", rc_value.roll, rc_value.pitch, rc_value.throttle, rc_value.yaw,
+             rc_value.gear);
 }
 
 void state_machine::init(ros::NodeHandle &nh) {

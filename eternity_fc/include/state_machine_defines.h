@@ -17,7 +17,6 @@ enum controller_mode {
 
 enum mode_action {
     donothing = 0,
-
     try_arm = 1,
     try_disarm = 2,
     toManual = 3,
