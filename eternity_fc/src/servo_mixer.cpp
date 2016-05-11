@@ -76,9 +76,11 @@ void servo_mixer::mixer()
    float My = before_mixer.axes[1] + torque_middle_point.y();
    float Mz = before_mixer.axes[3] + torque_middle_point.z();
    float Thrust = before_mixer.axes[2];
-   if (Thrust < 0)
+   bool disable_engine = false;
+   if (Thrust <= 0.01)
    {
       Thrust = 0;
+      disable_engine = true;
    }
 
    if (Thrust > 0.3) {
@@ -125,16 +127,10 @@ void servo_mixer::mixer()
 
    after_mixer.axes[0] = al;
    after_mixer.axes[1] = ar;
-   if (this->arm) {
+
+   if (this->arm && !disable_engine) {
       after_mixer.axes[2] = ul;
       after_mixer.axes[3] = ur;
-      if (this->mode == controller_mode::debug_possess_control)
-      {
-         after_mixer.axes[0] = actuator_rerange(rc_posses_data.wx);
-         after_mixer.axes[1] = actuator_rerange(rc_posses_data.wy);
-         after_mixer.axes[2] = actuator_rerange(rc_posses_data.throttle);
-         after_mixer.axes[3] = actuator_rerange(rc_posses_data.wz);
-      }
    }
    else
    {
@@ -142,6 +138,13 @@ void servo_mixer::mixer()
       after_mixer.axes[3] = 0;
    }
 
+   if (this->mode == controller_mode::debug_possess_control)
+   {
+	 after_mixer.axes[0] = actuator_rerange(rc_posses_data.wx);
+         after_mixer.axes[1] = actuator_rerange(rc_posses_data.wy);
+         after_mixer.axes[2] = actuator_rerange(rc_posses_data.throttle);
+         after_mixer.axes[3] = actuator_rerange(rc_posses_data.wz);
+    }
    //Trim
 
    for (int i = 0;i<8;i++)

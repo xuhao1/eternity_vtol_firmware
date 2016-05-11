@@ -1,37 +1,18 @@
-attitude_controller: {
-  angular_velocity_d_x: 0.0,
-  angular_velocity_d_y: 0.0,
-  angular_velocity_d_z: 0.0,
-  angular_velocity_p_x: 0.2,
-  angular_velocity_p_y: 0.1,
-  angular_velocity_p_z: 0.08,
-  attitude_p_x: 3,
-  attitude_p_y: 3,
-  attitude_p_z: 3,
-  head_velocity_i: 5,
-  head_velocity_p: 5,
-  in_simulator: false
-}
+attitude_controller: {angular_velocity_d_x: 0.0, angular_velocity_d_y: 0.0, angular_velocity_d_z: 0.0,
+  angular_velocity_p_x: 0.8, angular_velocity_p_y: 0.4, angular_velocity_p_z: 0.32,
+  attitude_p_x: 3, attitude_p_y: 3, attitude_p_z: 3, head_velocity_i: 5, head_velocity_p: 5,
+  in_simulator: false}
+dji_sdk: {A3_or_M100: 0, app_bundle_id: Welcome to use dji-sdk, app_id: 10086, app_version: 1,
+  baud_rate: 921600, enc_key: '12345678901234567890123456789012', groundstation_enable: 1,
+  serial_name: /dev/ttyUSB0, uart_or_usb: 0}
+rosdistro: 'jade
 
-dji_sdk: {
-  A3_or_M100: 0,
-  app_bundle_id: Welcome to use dji-sdk,
-  app_id: 10086,
-  app_version: 1,
-  baud_rate: 921600,
-  enc_key: '12345678901234567890123456789012',
-  groundstation_enable: 1,
-  serial_name: /dev/ttyUSB0,
-  uart_or_usb: 0
-}
+  '
+roslaunch:
+  uris: {host_odroid_ppl__36175: 'http://odroid-ppl:36175/'}
+rosversion: '1.11.16
 
-state_machine: {
-  max_angular_velocity: 4.0,
-  max_yaw_speed: 270
-}
-
-servo_mixer: {
-  torque_middle_point_x: 0.0,
-  torque_middle_point_y: 0.0,
-  torque_middle_point_z: 0.0
-}
+  '
+run_id: 60dd2232-168d-11e6-8499-001e06617a39
+servo_mixer: {torque_middle_point_x: 0.0, torque_middle_point_y: 0.0, torque_middle_point_z: -0, aileron_angle_ratio: 1.0 }
+state_machine: {max_angular_velocity: 4.0, max_yaw_speed: 270}
