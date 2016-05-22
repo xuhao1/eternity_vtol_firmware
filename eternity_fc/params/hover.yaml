@@ -1,7 +1,23 @@
-attitude_controller: {angular_velocity_d_x: 0.0, angular_velocity_d_y: 0.0, angular_velocity_d_z: 0.0,
-  angular_velocity_p_x: 0.8, angular_velocity_p_y: 0.4, angular_velocity_p_z: 0.32,
-  attitude_p_x: 3, attitude_p_y: 3, attitude_p_z: 3, head_velocity_i: 5, head_velocity_p: 5,
-  in_simulator: false}
+attitude_controller: {
+  angular_velocity_d_x: 0.0,
+  angular_velocity_d_y: 0.0,
+  angular_velocity_d_z: 0.0,
+  angular_velocity_p_x: 2.0,
+  angular_velocity_p_y: 3.0,
+  angular_velocity_p_z: 2.0,
+  angular_velocity_i_x: 0.1,
+  angular_velocity_i_y: 0.2,
+  angular_velocity_i_z: 0.1,
+  attitude_p_x: 2,
+  attitude_p_y: 6,
+  attitude_p_z: 2,
+  attitude_i_x: 0.1,
+  attitude_i_y: 0.2,
+  attitude_i_z: 0.1,
+  head_velocity_i: 5,
+  head_velocity_p: 5,
+  in_simulator: false
+  }
 dji_sdk: {A3_or_M100: 0, app_bundle_id: Welcome to use dji-sdk, app_id: 10086, app_version: 1,
   baud_rate: 921600, enc_key: '12345678901234567890123456789012', groundstation_enable: 1,
   serial_name: /dev/ttyUSB0, uart_or_usb: 0}
@@ -14,5 +30,13 @@ rosversion: '1.11.16
 
   '
 run_id: 60dd2232-168d-11e6-8499-001e06617a39
-servo_mixer: {torque_middle_point_x: 0.0, torque_middle_point_y: 0.0, torque_middle_point_z: -0, aileron_angle_ratio: 1.0 }
+servo_mixer: {
+  torque_middle_point_x: 0.0,
+  torque_middle_point_y: 0.0,
+  torque_middle_point_z: 0.0,
+  aileron_angle_ratio: 0.5,
+  manual_amplitude_x: 1.0,
+  manual_amplitude_y: 1.0,
+  manual_amplitude_z: 1.0
+}
 state_machine: {max_angular_velocity: 4.0, max_yaw_speed: 270}

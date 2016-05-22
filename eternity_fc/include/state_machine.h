@@ -44,6 +44,7 @@ public:
     ros::Publisher angular_velocity_sp_pub;
     ros::Publisher attitude_sp_pub;
     ros::Publisher mode_pub;
+    ros::Publisher rc_possess_pub;
 
     struct{
         ros::Publisher hover_att_sp;
@@ -92,6 +93,9 @@ public:
 
     int flight_status = 0;
 
+    ros::ServiceClient drone_arm_client;
+
+    void try_to_disarm();
 };
 
 #endif //ETERNITY_FC_STATE_MACHINE_H

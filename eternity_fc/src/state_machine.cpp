@@ -1,6 +1,8 @@
 #include <state_machine.h>
+#include <state_machine_defines.h>
+#include <dji_sdk/DroneArmControl.h>
 
-float deltat = 0.01;
+float deltat = 0.005;
 
 void state_machine::fast_update(const ros::TimerEvent &event) {
     //update about control
@@ -88,7 +90,7 @@ void state_machine::update_set_points() {
               angular_velocity_sp.wy = rc_value.pitch/ 10000.0f;
               angular_velocity_sp.wz = rc_value.yaw /10000.0f;
               angular_velocity_sp.throttle = rc_value.throttle / 10000.0f;
-              angular_velocity_sp_pub.publish(angular_velocity_sp);
+              rc_possess_pub.publish(angular_velocity_sp);
               break;
 
           }
@@ -102,11 +104,10 @@ void state_machine::slow_update(const ros::TimerEvent &event) {
     checkRC();
     //change state
     mode_action  action = mode_action::donothing;
-    if (rc_value.gear <-7000)
+    if (rc_value.gear >7000)
     {
-//        action = mode_action::toHoverAttitude;
-        action = mode_action::toManual;
-        engine_mode = engine_modes ::engine_lock;
+        action = mode_action::toHoverAttitude;
+        engine_mode = engine_modes::engine_lock;
     }
     if(rc_value.gear < 1000 && rc_value.gear > -1000)
     {
@@ -114,8 +115,9 @@ void state_machine::slow_update(const ros::TimerEvent &event) {
         engine_mode = engine_modes ::engine_straight_forward;
     }
 
-    if(rc_value.gear > 7000) {
-        action = mode_action::toPossess;
+    if(rc_value.gear <- 7000) {
+//        action = mode_action::toPossess;
+        try_to_disarm();
     }
 
     update_state_machine(action);
@@ -133,8 +135,8 @@ void state_machine::slow_update(const ros::TimerEvent &event) {
 
 
 
-    ROS_INFO("Mode : %d", static_cast<int>(mode));
-    ROS_INFO("Engine Mode: %d", engine_mode);
+    ROS_INFO("Mode : %s", controller_mode_names[static_cast<int>(mode)]);
+    ROS_INFO("Engine Mode: %s", engine_mode_names[engine_mode]);
     ROS_INFO("RC Value : %f %f %f %f %f", rc_value.roll, rc_value.pitch, rc_value.throttle, rc_value.yaw,
              rc_value.gear);
 }
@@ -146,9 +148,10 @@ void state_machine::init(ros::NodeHandle &nh) {
     sdk_permission_sub = nh.subscribe("/dji_sdk/sdk_permission",10,&state_machine::update_control_permission,this);
     flight_status_mode_sub = nh.subscribe("/dji_sdk/flight_status",10,&state_machine::update_flight_status,this);
 
-    angular_velocity_sp_pub = nh.advertise<eternity_fc::angular_velocity_sp>("angular_velocity_sp",10);
+    angular_velocity_sp_pub = nh.advertise<eternity_fc::angular_velocity_sp>("/setpoints/angular_velocity_sp",10);
     attitude_sp_pub = nh.advertise<eternity_fc::attitude_sp>("attitude_sp",10);
     mode_pub = nh.advertise<std_msgs::Int32>("fc_mode",10);
+    rc_possess_pub = nh.advertise<eternity_fc::angular_velocity_sp>("/setpoints/rc_possess",10);
 
     publishers.hover_att_sp = nh.advertise<eternity_fc::hover_attitude_sp>("/eternity_setpoints/hover_attitude_sp",10);
 
@@ -160,8 +163,8 @@ void state_machine::init(ros::NodeHandle &nh) {
     nh.param("max_attitude_angle",params.max_attitude_angle,45.0f);
     nh.param("max_yaw_speed",params.max_yaw_speed,180.0f);
 
-    slow_timer = nh.createTimer(ros::Rate(10),&state_machine::slow_update,this);
-    fast_timer = nh.createTimer(ros::Rate(100),&state_machine::fast_update,this);
+    slow_timer = nh.createTimer(ros::Rate(20),&state_machine::slow_update,this);
+    fast_timer = nh.createTimer(ros::Rate(50),&state_machine::fast_update,this);
 
     init_state_machine();
 
@@ -173,8 +176,12 @@ void state_machine::init(ros::NodeHandle &nh) {
     rc_value.roll = 0;
     rc_value.yaw = 0;
 
-    if (!in_simulator)
-        control_client = nh.serviceClient<dji_sdk::SDKPermissionControl>("/dji_sdk/sdk_permission_control",true);
+    if (!in_simulator) {
+        control_client = nh.serviceClient<dji_sdk::SDKPermissionControl>("/dji_sdk/sdk_permission_control", true);
+        drone_arm_client = nh.serviceClient<dji_sdk::DroneArmControl>("/dji_sdk/drone_arm_control",true);
+    }
+
+
 
 
 }
@@ -259,6 +266,13 @@ void state_machine::update_joy(sensor_msgs::Joy joy_data) {
         return;
     this->rc_value.gear = joy_data.buttons[0] * 10000;
     this->simulator_arming = joy_data.buttons[1] == 0;
+}
+
+void state_machine::try_to_disarm()
+{
+    dji_sdk::DroneArmControl con;
+    con.request.arm = 0;
+    drone_arm_client.call(con);
 }
 
 int main(int argc,char ** argv)

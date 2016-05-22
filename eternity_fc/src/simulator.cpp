@@ -138,7 +138,8 @@ Eigen::Vector3f simulator::air_dynamic_force() {
         airdynamic_force = - air_relative_velocity.normalized() * drag;
 
         //Lift vector
-        Vector3f lift3f(-air_relative_velocity.z(),0,air_relative_velocity.x());
+//        Vector3f lift3f(-air_relative_velocity.z(),0,air_relative_velocity.x());
+        Vector3f lift3f(0,0,-1);
         lift3f = lift3f.normalized() * lift;
         airdynamic_force = airdynamic_force + lift3f;
 

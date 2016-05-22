@@ -12,7 +12,17 @@ enum controller_mode {
     manual = 3,
     debug_possess_control = 4,
     hover_attitude = 5,
-    mode_end
+    mode_end = 6
+};
+
+const char* controller_mode_names[] = {
+        "Nothing",
+        "DISARM",
+        "ATTITUDE(GLOBAL)",
+        "MANUAL",
+        "POSSESS_CONTROL",
+        "ATTITUDE(HOVER)",
+        "MODE_END"
 };
 
 enum mode_action {
@@ -37,7 +47,13 @@ enum engine_modes
 {
     engine_straight_forward = 0,
     engine_control_speed = 1,
-    engine_lock = 3
+    engine_lock = 2
+};
+
+const char* engine_mode_names[] = {
+        "STRAIGHT_FORWARD",
+        "SPEED_CONTROL",
+        "LOCKED"
 };
 
 #endif //ETERNITY_FC_STATE_MACHINE_DEFINES_H

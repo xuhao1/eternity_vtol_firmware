@@ -13,6 +13,7 @@
 #include <ros/ros.h>
 #include <state_machine.h>
 #include <dji_sdk/Acceleration.h>
+#include <dji_sdk/AttitudeQuaternion.h>
 /*
  This is controller for eternity proj
  receieve odometry and accel msg from sensor
@@ -51,12 +52,14 @@ public:
 
     static void angle_axis_from_quat(Quaternionf q0, Quaternionf q_sp, Vector3f & axis);
 
-    void angular_velocity_controller(float DeltaTime,Vector3f angular_vel_sp);
-    void so3_attitude_controller(float DeltaTime, Quaternionf attitude_sp,Vector3f external_angular_speed = Vector3f(0,0,0));
-    void head_velocity_control(float DeltaTime,float vertical_velocity_sp);
+    Eigen::Vector3f  angular_velocity_controller(float DeltaTime,Vector3f angular_vel_sp);
+    Eigen::Vector3f so3_attitude_controller(float DeltaTime, Quaternionf attitude_sp,Vector3f external_angular_speed = Vector3f(0,0,0));
+    float head_velocity_control(float DeltaTime,float vertical_velocity_sp);
 
     void run_hover_attitude_controller(float DeltaTime,eternity_fc::hover_attitude_sp hover_sp);
     void run_attitude_controller(float DeltaTime,eternity_fc::attitude_sp attitude_sp,Vector3f external_angular_speed = Vector3f(0,0,0));
+    void run_manual_controller(float DelatTime,eternity_fc::angular_velocity_sp angular_velocity_sp1);
+//    void run_thrust_controller(float DeltaTime,)
 
 
     //states
@@ -66,12 +69,13 @@ public:
     Vector3f ground_velocity = Vector3f(0,0,0);
     Vector3f local_accel = Vector3f(0,0,0);
     controller_mode mode =  controller_mode::nothing;
-    nav_msgs::Odometry odometry;
+//    nav_msgs::Odometry odometry;
 
     //params
     Vector3f max_angular_velocity;
     Vector3f angular_velocity_p;
     Vector3f angular_velocity_d;
+    Vector3f angular_velocity_i;
     Vector3f attitude_p;
     Vector3f attitude_i;
     Vector3f attitude_d;
@@ -79,6 +83,8 @@ public:
     float head_velocity_p;
     float head_velocity_d;
     float thrust_weight_ratio;
+
+    float angular_err_d_mixer;
 
     //output
     float Aileron = 0;
@@ -108,10 +114,13 @@ public:
     //sub
     ros::Subscriber odometry_sub,angular_velocity_sp_sub,attitude_sp_sub,mode_sub,accel_sub;
     ros::Subscriber hover_attitude_sub;
+    ros::Subscriber dji_attitude_sub;
     ros::Publisher mixer_pub;
+    ros::Publisher angular_setpoints_pub;
 
     void odometry_callback(const nav_msgs::Odometry & odometry);
-    void angular_velocity_callback(const eternity_fc::angular_velocity_sp & sp);
+    void dji_attitude_callback(const dji_sdk::AttitudeQuaternion & quad);
+    void angular_velocity_sp_callback(const eternity_fc::angular_velocity_sp & sp);
     void attitude_sp_callback(const eternity_fc::attitude_sp & sp);
     void mode_sub_callback(const std_msgs::Int32 & mode);
     void accel_sub_callback(const dji_sdk::Acceleration & acc);

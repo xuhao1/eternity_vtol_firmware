@@ -45,6 +45,8 @@ public:
     ros::Timer fast_timer;
     ros::Timer slow_timer;
 
+    Eigen::Vector3f manual_amplitude;
+
     void mode_sub_callback(const std_msgs::Int32 & mode);
 
     ros::Subscriber mode_sub;
@@ -55,6 +57,8 @@ public:
     ros::Subscriber before_mixer_sub;
     void update_before_mixer(sensor_msgs::Joy joy_data);
     void update_rc_values(eternity_fc::angular_velocity_sp data);
+    void calcuateU(Eigen::Vector3f& u_xyz,float & Ut);
+    Eigen::Vector4f calcuateActuators(Eigen::Vector3f u_xyz,float Thrust);
     float trim(float v)
     {
         if (v>100)
