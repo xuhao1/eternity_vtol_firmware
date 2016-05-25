@@ -95,6 +95,7 @@ public:
     struct {
        float max_attitude_angle = 45;
        float max_yaw_speed = 180;
+        float k_filter_angular  = 0.2;
     } params;
 
     //Intt values

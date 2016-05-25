@@ -26,6 +26,7 @@ void servo_mixer::update_parameters(ros::NodeHandle &nh)
     nh.param("manual_amplitude_x", manual_amplitude.x(), 1.0f);
     nh.param("manual_amplitude_y", manual_amplitude.y(), 1.0f);
     nh.param("manual_amplitude_z", manual_amplitude.z(), 1.0f);
+    nh.param("mixer_rate",mixer_rate,50);
 //    ROS_INFO("torque_middle_point_x %5f",torque_middle_point.x());
 }
 
@@ -41,14 +42,15 @@ void servo_mixer::init(ros::NodeHandle &nh)
         after_mixer.axes[i] = 0;
     }
 
+    update_parameters(nh);
+
     mode_sub = nh.subscribe("/state_machine/fc_mode", 10, &servo_mixer::mode_sub_callback, this);
     before_mixer_sub = nh.subscribe("/attitude_controller/mixer", 10, &servo_mixer::update_before_mixer, this);
     rc_possess_sub = nh.subscribe("/setpoints/rc_possess", 10, &servo_mixer::update_rc_values, this);
 
-    fast_timer = nh.createTimer(ros::Rate(200), &servo_mixer::fast_update, this);
+    fast_timer = nh.createTimer(ros::Rate(mixer_rate), &servo_mixer::fast_update, this);
     slow_timer = nh.createTimer(ros::Rate(10), &servo_mixer::slow_update, this);
 
-    update_parameters(nh);
 }
 
 void servo_mixer::mode_sub_callback(const std_msgs::Int32 &mode)
@@ -214,7 +216,10 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "servo_mixer");
     ros::NodeHandle nh("servo_mixer");
     servo_mixer sm(nh);
+
     ROS_INFO("SERVO MIXER Controller READY");
-    ros::spin();
+    ros::AsyncSpinner spinner(2); // Use 4 threads
+    spinner.start();
+    ros::waitForShutdown();
 }
 

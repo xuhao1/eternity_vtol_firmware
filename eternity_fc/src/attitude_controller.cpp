@@ -23,8 +23,8 @@ void attitude_controller::init(ros::NodeHandle &nh)
     attitude_sp.z = 0;
     attitude_sp.head_speed = 0;
 
-    fast_timer = nh.createTimer(ros::Rate(200), &attitude_controller::fast_update, this);
-    slow_timer = nh.createTimer(ros::Rate(10), &attitude_controller::slow_update, this);
+    fast_timer = nh.createTimer(ros::Duration(0.005), &attitude_controller::fast_update, this);
+    slow_timer = nh.createTimer(ros::Duration(0.1), &attitude_controller::slow_update, this);
 
     update_params(nh);
 
@@ -59,15 +59,14 @@ void attitude_controller::fast_update(const ros::TimerEvent &timerEvent)
 
     static int count = 0;
     if (count++ % 10 == 0) {
-//		AngleAxisf angle_axis(attitude);
-//		Vector3f axis = angle_axis.axis();
-//		float angle = angle_axis.angle();
-//		Vector3f rpy = attitude.toRotationMatrix().eulerAngles(0,1,2) * 180 /M_PI;
     }
 }
 
 void attitude_controller::run_controller(const ros::TimerEvent &timerEvent)
 {
+    static int count = 0;
+    count ++;
+
     switch (mode) {
         case controller_mode::manual: {
             run_manual_controller(deltatime, angular_velocity_sp);
@@ -184,11 +183,11 @@ void attitude_controller::odometry_callback(const nav_msgs::Odometry &odometry)
 void attitude_controller::update_params(ros::NodeHandle &nh)
 {
     //rad
-    nh.param("max_angular_velocity_x", max_angular_velocity.x(), 2.0f);
+    nh.param("max_angular_velocity_x", max_angular_velocity.x(), 10.0f);
     //rad
-    nh.param("max_angular_velocity_y", max_angular_velocity.y(), 2.0f);
+    nh.param("max_angular_velocity_y", max_angular_velocity.y(), 10.0f);
     //rad
-    nh.param("max_angular_velocity_z", max_angular_velocity.z(), 2.0f);
+    nh.param("max_angular_velocity_z", max_angular_velocity.z(), 10.0f);
 
     //TODO:Calcaute them
     nh.param("angular_velocity_p_x", angular_velocity_p.x(), 1.0f);
@@ -199,9 +198,9 @@ void attitude_controller::update_params(ros::NodeHandle &nh)
     nh.param("angular_velocity_i_y", angular_velocity_i.y(), 0.0f);
     nh.param("angular_velocity_i_z", angular_velocity_i.z(), 0.0f);
 
-    nh.param("angular_velocity_d_x", angular_velocity_d.x(), 1.0f);
-    nh.param("angular_velocity_d_y", angular_velocity_d.y(), 1.0f);
-    nh.param("angular_velocity_d_z", angular_velocity_d.z(), 1.0f);
+    nh.param("angular_velocity_d_x", angular_velocity_d.x(), 0.0f);
+    nh.param("angular_velocity_d_y", angular_velocity_d.y(), 0.0f);
+    nh.param("angular_velocity_d_z", angular_velocity_d.z(), 0.0f);
 
     nh.param("attitude_p_x", attitude_p.x(), 2.0f);
     nh.param("attitude_p_y", attitude_p.y(), 2.0f);
@@ -225,7 +224,9 @@ void attitude_controller::update_params(ros::NodeHandle &nh)
 
     nh.param("using_unreal", UsingUnreal, false);
 
-    nh.param("angular_err_d_mixer", angular_err_d_mixer, 0.5f);
+    nh.param("angular_err_d_mixer", angular_err_d_mixer, 0.1f);
+
+    nh.param("k_filter_angular",params.k_filter_angular,0.1f);
 
 }
 
@@ -257,9 +258,7 @@ void attitude_controller::angle_axis_from_quat(Quaternionf q0, Quaternionf q_sp,
     axis = axis * angle;
 }
 
-#define MAX_ANGULAR_I 0.5
-
-#define k_filter_angular 0.3
+#define MAX_ANGULAR_I 0.8
 
 Vector3f attitude_controller::angular_velocity_controller(float DeltaTime, Vector3f angular_vel_sp)
 {
@@ -269,8 +268,11 @@ Vector3f attitude_controller::angular_velocity_controller(float DeltaTime, Vecto
 
 
     Vector3f err = angular_vel_sp - angular_velocity;
-    err = err_last * (1 - k_filter_angular) + err * k_filter_angular;
+    err_d = err_d * (1 - angular_err_d_mixer) + (err - err_last) / deltatime * angular_err_d_mixer;
+    //filter
+    err = err_last * (1 - params.k_filter_angular) + err * params.k_filter_angular;
     err_angular_int = err + err_angular_int * deltatime;
+    err_last = err;
 
     if (angular_velocity_i.x() > 1e-2 && err_angular_int.x() * angular_velocity_i.x() > MAX_ANGULAR_I) {
         err_angular_int.x() = MAX_ANGULAR_I / angular_velocity_i.x();
@@ -278,6 +280,7 @@ Vector3f attitude_controller::angular_velocity_controller(float DeltaTime, Vecto
 
     if (angular_velocity_i.y() > 1e-2 && err_angular_int.y() * angular_velocity_i.y() > MAX_ANGULAR_I) {
         err_angular_int.y() = MAX_ANGULAR_I / angular_velocity_i.y();
+//        ROS_INFO("y int :%f",err_angular_int.y());
     }
 
     if (angular_velocity_i.z() > 1e-2 && err_angular_int.z() * angular_velocity_i.z() > MAX_ANGULAR_I) {
@@ -290,15 +293,14 @@ Vector3f attitude_controller::angular_velocity_controller(float DeltaTime, Vecto
 
     if (angular_velocity_i.y() > 1e-2 && err_angular_int.y() * angular_velocity_i.y() < -MAX_ANGULAR_I) {
         err_angular_int.y() = -MAX_ANGULAR_I / angular_velocity_i.y();
+//        static int count = 0;
+//        ROS_INFO("y int :%f",err_angular_int.y());
     }
 
     if (angular_velocity_i.z() > 1e-2 && err_angular_int.z() * angular_velocity_i.z() < -MAX_ANGULAR_I) {
         err_angular_int.z() = -MAX_ANGULAR_I / angular_velocity_i.z();
     }
 
-    //filter
-    err_d = err_d * (1 - angular_err_d_mixer) + (err - err_last) / deltatime * angular_err_d_mixer;
-    err_last = err;
 
 
     float Aileron = err.x() * angular_velocity_p.x() + err_d.x() * angular_velocity_d.x() +
@@ -321,12 +323,14 @@ Vector3f product(Vector3f a, Vector3f b)
 Eigen::Vector3f attitude_controller::so3_attitude_controller(float DeltaTime, Quaternionf attitude_sp,
                                                   Vector3f external_angular_speed)
 {
+    static int count = 0;
+    count ++;
     Vector3f err_so3;
     static Vector3f err_so3_last = Vector3f(0, 0, 0);
     static Vector3f err_so3_integrate = Vector3f(0, 0, 0);
 
     angle_axis_from_quat(attitude, attitude_sp, err_so3);
-    err_so3_integrate = err_so3_integrate * DeltaTime + err_so3;
+    err_so3_integrate = err_so3_integrate + err_so3* DeltaTime ;
     err_so3 = err_so3_last * (1 - k_filter_attitude) + err_so3 * k_filter_attitude;
     err_so3_last = err_so3;
 
@@ -346,8 +350,9 @@ Eigen::Vector3f attitude_controller::so3_attitude_controller(float DeltaTime, Qu
         err_so3_integrate.x() = -max_angular_velocity.x() / 2 / attitude_i.x();
     }
 
-    if (attitude_i.y() > 1e-2 && err_so3_integrate.y() * attitude_i.y() <- max_angular_velocity.y() / 2) {
-        err_so3_integrate.y() = -max_angular_velocity.y() / 2 / attitude_i.y();
+    if (attitude_i.y() > 1e-2 && err_so3_integrate.y() * attitude_i.y() <- max_angular_velocity.y()/2 ) {
+        err_so3_integrate.y() = -max_angular_velocity.y()/2  / attitude_i.y();
+
     }
 
     if (attitude_i.z() > 1e-2 && err_so3_integrate.z() * attitude_i.z() <- max_angular_velocity.z() / 2) {
@@ -406,6 +411,7 @@ void attitude_controller::run_hover_attitude_controller(float DeltaTime, eternit
     static int count = 0;
     count++;
     Eigen::Quaternionf base_quat(Eigen::AngleAxisf(M_PI / 2, Eigen::Vector3f::UnitY()));
+//    Eigen::Quaternionf base_quat(Eigen::AngleAxisf(0, Eigen::Vector3f::UnitY()));
     float roll_sp = hover_sp.roll;
     float pitch_sp = hover_sp.pitch;
     Vector3f rpy = quat2eulers(attitude * base_quat.inverse()) * 180 / M_PI;
@@ -429,11 +435,16 @@ void attitude_controller::run_hover_attitude_controller(float DeltaTime, eternit
     yaw_angular_speed = attitude.inverse()._transformVector(yaw_angular_speed);
 //	yaw_angular_speed = attitude._transformVector(yaw_angular_speed);
     run_attitude_controller(deltatime, att_sp, yaw_angular_speed);
+    if (count % 10 ==0)
+    {
+        ROS_INFO("Roll :%f pitch %f yaw %f",rpy.x(),rpy.y(),rpy.z());
+    }
 }
 
 void attitude_controller::run_attitude_controller(float DeltaTime, eternity_fc::attitude_sp attitude_sp,
                                                   Vector3f external_angular_speed)
 {
+//    ROS_INFO("Here is the attitude controller");
     static int  count = 0;
     count ++;
     Quaternionf att_sp;
@@ -459,7 +470,7 @@ void attitude_controller::run_attitude_controller(float DeltaTime, eternity_fc::
             Thrust = 0;
             break;
     }
-    if (count % 10 == 0)
+//    if (count % 10 == 0)
     {
         eternity_fc::angular_velocity_sp angular_velocity_setpoint;
         angular_velocity_setpoint.wx = angular_vel_sp.x();
@@ -478,6 +489,8 @@ int main(int argc, char **argv)
     attitude_controller attitude_controller1(nh);
     ROS_INFO("Attitude Controller READY");
 
-    ros::spin();
+    ros::AsyncSpinner spinner(2); // Use 4 threads
+    spinner.start();
+    ros::waitForShutdown();
     return 0;
 }

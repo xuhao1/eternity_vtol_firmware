@@ -33,6 +33,7 @@ public:
     //ratio using how much thrust for mz
     float k_thrust_z_ratio;
 
+    int mixer_rate = 0;
     static float actuator_rerange(float v,float lowwer = 0,float upper = 100,float lowwer_origin = -1 ,float upper_origin = 1);
 
     ros::Publisher actucator_control_pub;

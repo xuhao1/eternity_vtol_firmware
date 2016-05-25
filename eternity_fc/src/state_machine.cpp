@@ -106,17 +106,17 @@ void state_machine::slow_update(const ros::TimerEvent &event) {
     mode_action  action = mode_action::donothing;
     if (rc_value.gear >7000)
     {
-        action = mode_action::toHoverAttitude;
-        engine_mode = engine_modes::engine_lock;
+        action = mode_action ::toHoverAttitude;
+        engine_mode = engine_modes ::engine_straight_forward;
     }
     if(rc_value.gear < 1000 && rc_value.gear > -1000)
     {
-        action = mode_action::toHoverAttitude;
-        engine_mode = engine_modes ::engine_straight_forward;
+        action = mode_action ::toHoverAttitude;
+        engine_mode = engine_modes::engine_lock;
     }
 
     if(rc_value.gear <- 7000) {
-//        action = mode_action::toPossess;
+        engine_mode = engine_modes::engine_lock;
         try_to_disarm();
     }
 
@@ -250,7 +250,6 @@ void state_machine::update_rc_channels(RCChannels rc_value) {
     RCUpdated = true;
 }
 void state_machine::update_control_permission(std_msgs::UInt8 data) {
-//    ROS_INFO("control :%d",data.data);
     this->obtained_control = data.data > 0;
 }
 
@@ -283,6 +282,8 @@ int main(int argc,char ** argv)
 
     state_machine ma(nh);
 
-    ros::spin();
+    ros::AsyncSpinner spinner(2); // Use 4 threads
+    spinner.start();
+    ros::waitForShutdown();
     return 0;
 }

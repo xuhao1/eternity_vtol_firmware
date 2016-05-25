@@ -7,4 +7,7 @@
     </node>
     <node pkg="eternity_fc" type="servo_mixer_node" name="servo_mixer" output="screen">
     </node>
+    <node pkg="rosbag" type="record" name="rosbag_record_standard_data"
+           args="-o /home/odroid/eternity_ws/logs/data/angular_velocity_sp.bag /setpoints/angular_velocity_sp"
+           />
 </launch>

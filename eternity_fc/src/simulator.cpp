@@ -194,5 +194,7 @@ int main(int argc,char ** argv)
     ros::NodeHandle nh;
     simulator sim(nh);
     ROS_INFO("SIMULATOR READY!!!");
-    ros::spin();
+    ros::AsyncSpinner spinner(2); // Use 4 threads
+    spinner.start();
+    ros::waitForShutdown();
 }
