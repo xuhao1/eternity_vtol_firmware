@@ -117,7 +117,7 @@ Eigen::Vector4f servo_mixer::calcuateActuators(Eigen::Vector3f u_xyz, float Thru
 void servo_mixer::calcuateU(Eigen::Vector3f &u_xyz, float &Ut)
 {
 #ifdef  EASY_MIXER
-    u_xyz.x() = (before_mixer.axes[0] + torque_middle_point.x()) * manual_amplitude.x();
+    u_xyz.x(i) = (before_mixer.axes[0] + torque_middle_point.x()) * manual_amplitude.x();
     u_xyz.y() = (before_mixer.axes[1] + torque_middle_point.y()) * manual_amplitude.y();
     u_xyz.z() = (before_mixer.axes[3] + torque_middle_point.z()) * manual_amplitude.z();
     Ut = before_mixer.axes[2];

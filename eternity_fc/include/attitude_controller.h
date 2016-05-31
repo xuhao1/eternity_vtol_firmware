@@ -84,7 +84,6 @@ public:
     float head_velocity_d;
     float thrust_weight_ratio;
 
-    float angular_err_d_mixer;
 
     //output
     float Aileron = 0;
@@ -95,7 +94,9 @@ public:
     struct {
        float max_attitude_angle = 45;
        float max_yaw_speed = 180;
-        float k_filter_angular  = 0.2;
+        float k_filter_angular  = 0.1;
+        float k_filter_attitude = 0.1;
+        float attitude_d_angular_ratio = 0.1;
     } params;
 
     //Intt values

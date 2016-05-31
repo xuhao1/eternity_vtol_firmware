@@ -224,9 +224,8 @@ void attitude_controller::update_params(ros::NodeHandle &nh)
 
     nh.param("using_unreal", UsingUnreal, false);
 
-    nh.param("angular_err_d_mixer", angular_err_d_mixer, 0.1f);
-
     nh.param("k_filter_angular",params.k_filter_angular,0.1f);
+    nh.param("k_filter_attitude",params.k_filter_attitude,0.1f);
 
 }
 
@@ -268,9 +267,9 @@ Vector3f attitude_controller::angular_velocity_controller(float DeltaTime, Vecto
 
 
     Vector3f err = angular_vel_sp - angular_velocity;
-    err_d = err_d * (1 - angular_err_d_mixer) + (err - err_last) / deltatime * angular_err_d_mixer;
     //filter
     err = err_last * (1 - params.k_filter_angular) + err * params.k_filter_angular;
+    err_d = (err - err_last) / deltatime;
     err_angular_int = err + err_angular_int * deltatime;
     err_last = err;
 
@@ -318,7 +317,6 @@ Vector3f product(Vector3f a, Vector3f b)
     return Vector3f(a.x() * b.x(), a.y() * b.y(), a.z() * b.z());
 }
 
-#define k_filter_attitude 0.2
 
 Eigen::Vector3f attitude_controller::so3_attitude_controller(float DeltaTime, Quaternionf attitude_sp,
                                                   Vector3f external_angular_speed)
@@ -331,7 +329,8 @@ Eigen::Vector3f attitude_controller::so3_attitude_controller(float DeltaTime, Qu
 
     angle_axis_from_quat(attitude, attitude_sp, err_so3);
     err_so3_integrate = err_so3_integrate + err_so3* DeltaTime ;
-    err_so3 = err_so3_last * (1 - k_filter_attitude) + err_so3 * k_filter_attitude;
+    err_so3 = err_so3_last * (1 - params.k_filter_attitude) + err_so3 * params.k_filter_attitude;
+    Vector3f err_d = - angular_velocity * params.attitude_d_angular_ratio + (1-params.attitude_d_angular_ratio) *(err_so3_last - err_so3);
     err_so3_last = err_so3;
 
     if (attitude_i.x() > 1e-2 && err_so3_integrate.x() * attitude_i.x() > max_angular_velocity.x() / 2) {
@@ -360,7 +359,7 @@ Eigen::Vector3f attitude_controller::so3_attitude_controller(float DeltaTime, Qu
     }
 
 
-    return product(err_so3, attitude_p) -  product(attitude_d,angular_velocity) + product(attitude_i,err_so3_integrate) + external_angular_speed;
+    return product(err_so3, attitude_p) +  product(attitude_d,err_d) + product(attitude_i,err_so3_integrate) + external_angular_speed;
 
 }
 
@@ -413,7 +412,7 @@ void attitude_controller::run_hover_attitude_controller(float DeltaTime, eternit
     Eigen::Quaternionf base_quat(Eigen::AngleAxisf(M_PI / 2, Eigen::Vector3f::UnitY()));
 //    Eigen::Quaternionf base_quat(Eigen::AngleAxisf(0, Eigen::Vector3f::UnitY()));
     float roll_sp = hover_sp.roll;
-    float pitch_sp = hover_sp.pitch;
+    float pitch_sp = - hover_sp.pitch;
     Vector3f rpy = quat2eulers(attitude * base_quat.inverse()) * 180 / M_PI;
     float yaw_sp = rpy.z();//+ hover_sp.yaw * deltatime;
     Eigen::AngleAxisf rollAngle(roll_sp * M_PI / 180, Eigen::Vector3f::UnitX());

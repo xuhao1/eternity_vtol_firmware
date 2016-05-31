@@ -107,11 +107,13 @@ void state_machine::slow_update(const ros::TimerEvent &event) {
     if (rc_value.gear >7000)
     {
         action = mode_action ::toHoverAttitude;
+//        action = mode_action ::toManual;
         engine_mode = engine_modes ::engine_straight_forward;
     }
     if(rc_value.gear < 1000 && rc_value.gear > -1000)
     {
         action = mode_action ::toHoverAttitude;
+//        action = mode_action ::toManual;
         engine_mode = engine_modes::engine_lock;
     }
 
